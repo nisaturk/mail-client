@@ -6,16 +6,16 @@ import '../../models/mail_account.dart';
 import '../../state/mail_accounts_provider.dart';
 
 class ComposeScreen extends ConsumerStatefulWidget {
-  final String? initialTo;
-  final String? initialSubject;
-  final String? initialBody;
-
   const ComposeScreen({
     super.key,
     this.initialTo,
     this.initialSubject,
     this.initialBody,
   });
+
+  final String? initialTo;
+  final String? initialSubject;
+  final String? initialBody;
 
   @override
   ConsumerState<ComposeScreen> createState() => _ComposeScreenState();
@@ -46,8 +46,16 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
     super.dispose();
   }
 
+  String get _title {
+    final String s = widget.initialSubject ?? '';
+    if (s.startsWith('Re:')) return 'Reply';
+    if (s.startsWith('Fwd:')) return 'Forward';
+    return 'New message';
+  }
+
   @override
   Widget build(BuildContext context) {
+    final ColorScheme scheme = Theme.of(context).colorScheme;
     final accountsState = ref.watch(mailAccountsProvider);
     final activeAccounts =
         accountsState.accounts.where((a) => a.isActive).toList();
@@ -58,12 +66,30 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Compose'),
+        leading: IconButton(
+          icon: const Icon(Icons.close),
+          tooltip: 'Cancel',
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text(_title),
         actions: [
-          IconButton(
-            onPressed: _sending ? null : _pickAttachment,
-            icon: const Icon(Icons.attach_file),
-          ),
+          if (_sending)
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16),
+              child: Center(
+                child: SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            )
+          else
+            IconButton(
+              icon: const Icon(Icons.send_outlined),
+              tooltip: 'Send',
+              onPressed: _send,
+            ),
         ],
       ),
       body: Form(
@@ -73,6 +99,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
               child: DropdownButtonFormField<MailAccount>(
+                isExpanded: true,
                 initialValue: _selectedAccount,
                 decoration: const InputDecoration(
                   labelText: 'From',
@@ -82,7 +109,10 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
                 items: activeAccounts
                     .map((a) => DropdownMenuItem(
                           value: a,
-                          child: Text(a.emailAddress),
+                          child: Text(
+                            a.emailAddress,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ))
                     .toList(),
                 onChanged: (v) => setState(() => _selectedAccount = v),
@@ -115,27 +145,41 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
               ),
             ),
             if (_attachments.isNotEmpty)
-              SizedBox(
-                height: 56,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  itemCount: _attachments.length,
-                  separatorBuilder: (_, _) => const SizedBox(width: 8),
-                  itemBuilder: (context, index) {
-                    final f = _attachments[index];
-                    return Chip(
-                      avatar: const Icon(Icons.description, size: 18),
-                      label: Text(
-                        p.basename(f.path),
-                        style: const TextStyle(fontSize: 12),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 8, 0),
+                child: Column(
+                  children: [
+                    for (final (index, f) in _attachments.indexed)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 6),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.insert_drive_file_outlined,
+                              size: 18,
+                              color: scheme.onSurfaceVariant,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                p.basename(f.path),
+                                style: Theme.of(context).textTheme.bodySmall,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.close, size: 16),
+                              visualDensity: VisualDensity.compact,
+                              tooltip: 'Remove attachment',
+                              onPressed: () => setState(
+                                () => _attachments.removeAt(index),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                      deleteIcon: const Icon(Icons.close, size: 16),
-                      onDeleted: () =>
-                          setState(() => _attachments.removeAt(index)),
-                    );
-                  },
+                  ],
                 ),
               ),
             const Divider(height: 1),
@@ -157,24 +201,17 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
       ),
       bottomNavigationBar: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: SizedBox(
-            width: double.infinity,
-            height: 48,
-            child: FilledButton.icon(
-              onPressed: _sending ? null : _send,
-              icon: _sending
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                  : const Icon(Icons.send),
-              label: Text(_sending ? 'Sending...' : 'Send'),
-            ),
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+          child: Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _sending ? null : _pickAttachment,
+                  icon: const Icon(Icons.attach_file, size: 18),
+                  label: const Text('Attach'),
+                ),
+              ),
+            ],
           ),
         ),
       ),
