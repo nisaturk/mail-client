@@ -1,8 +1,13 @@
+import 'package:dio/dio.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:path/path.dart' as p;
+import 'package:uuid/uuid.dart';
 import '../../models/mail_account.dart';
+import '../../repositories/api_client.dart';
+import '../../repositories/api_config.dart';
+import '../../repositories/mail_repository.dart';
 import '../../state/mail_accounts_provider.dart';
 
 class ComposeScreen extends ConsumerStatefulWidget {
@@ -26,6 +31,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
   late final TextEditingController _toCtrl;
   late final TextEditingController _subjectCtrl;
   late final TextEditingController _bodyCtrl;
+  late final String _idempotencyKey;
   MailAccount? _selectedAccount;
   final List<_PickedFile> _attachments = [];
   bool _sending = false;
@@ -33,6 +39,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
   @override
   void initState() {
     super.initState();
+    _idempotencyKey = const Uuid().v4();
     _toCtrl = TextEditingController(text: widget.initialTo ?? '');
     _subjectCtrl = TextEditingController(text: widget.initialSubject ?? '');
     _bodyCtrl = TextEditingController(text: widget.initialBody ?? '');
@@ -241,18 +248,73 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
 
     setState(() => _sending = true);
 
-    // TODO: POST /api/mail-accounts/{accountId}/send via Dio
-    await Future.delayed(const Duration(seconds: 2));
+    if (useMockApi) {
+      await Future.delayed(const Duration(seconds: 2));
+      if (!mounted) return;
+      setState(() => _sending = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Mail sent'),
+          backgroundColor: Colors.green,
+        ),
+      );
+      Navigator.pop(context);
+      return;
+    }
+
+    final sendResult = await sendMail(
+      dio: ref.read(apiClientProvider).dio,
+      accountId: _selectedAccount!.id,
+      toAddress: _toCtrl.text.trim(),
+      subject: _subjectCtrl.text.trim(),
+      bodyText: _bodyCtrl.text.trim(),
+      attachments: await _buildAttachments(),
+      idempotencyKey: _idempotencyKey,
+    );
 
     if (!mounted) return;
     setState(() => _sending = false);
+
+    if (sendResult.sent) {
+      final message = sendResult.sentCopySaved == false
+          ? 'Mail was sent but the sent-copy could not be saved.'
+          : 'Mail sent';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: Colors.green,
+        ),
+      );
+      Navigator.pop(context);
+      return;
+    }
+
+    if (sendResult.deliveryUncertain) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Delivery may have already occurred.')),
+      );
+      return;
+    }
+
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Mail sent'),
-        backgroundColor: Colors.green,
+      SnackBar(
+        content: Text(sendResult.error ?? 'Failed to send mail'),
+        action: sendResult.retryable
+            ? SnackBarAction(label: 'Retry', onPressed: _send)
+            : null,
       ),
     );
-    Navigator.pop(context);
+  }
+
+  Future<List<MultipartFile>> _buildAttachments() async {
+    final files = <MultipartFile>[];
+    for (final f in _attachments) {
+      files.add(await MultipartFile.fromFile(
+        f.path,
+        filename: p.basename(f.path),
+      ));
+    }
+    return files;
   }
 }
 
