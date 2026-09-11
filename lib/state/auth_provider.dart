@@ -2,9 +2,8 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../repositories/api_client.dart';
+import '../repositories/api_config.dart';
 import '../repositories/mock_auth_repository.dart';
-
-const useMockApi = true;
 
 class AuthState {
   final bool isLoading;
@@ -12,6 +11,8 @@ class AuthState {
   final bool registeredPending;
   final bool isLoggedIn;
   final bool isAdmin;
+  final String? userId;
+  final String? email;
 
   const AuthState({
     this.isLoading = false,
@@ -19,6 +20,8 @@ class AuthState {
     this.registeredPending = false,
     this.isLoggedIn = false,
     this.isAdmin = false,
+    this.userId,
+    this.email,
   });
 
   AuthState copyWith({
@@ -27,6 +30,8 @@ class AuthState {
     bool? registeredPending,
     bool? isLoggedIn,
     bool? isAdmin,
+    String? userId,
+    String? email,
   }) {
     return AuthState(
       isLoading: isLoading ?? this.isLoading,
@@ -34,6 +39,8 @@ class AuthState {
       registeredPending: registeredPending ?? this.registeredPending,
       isLoggedIn: isLoggedIn ?? this.isLoggedIn,
       isAdmin: isAdmin ?? this.isAdmin,
+      userId: userId ?? this.userId,
+      email: email ?? this.email,
     );
   }
 }
@@ -52,27 +59,56 @@ class AuthNotifier extends StateNotifier<AuthState> {
       if (useMockApi) {
         await _mock.login(email, password);
         await _tokenStorage.write('mock.jwt.token');
-        state = const AuthState(isLoggedIn: true, isAdmin: true);
+        await _tokenStorage.writeUserId('mock-user-id');
+        await _tokenStorage.writeEmail(email);
+        await _tokenStorage.writeRole('Admin');
+        state = AuthState(
+          isLoggedIn: true,
+          isAdmin: true,
+          userId: 'mock-user-id',
+          email: email,
+        );
       } else {
         final response = await _api.dio.post(
           '/auth/login',
           data: {'email': email, 'password': password},
         );
-        final token = response.data['token'] as String?;
+        final data = response.data as Map<String, dynamic>;
+        final token = data['accessToken'] as String?;
         if (token == null) throw Exception('No token in response');
+        final userId = data['userId'] as String? ?? '';
+        final userEmail = data['email'] as String? ?? email;
+        final role = data['role'] as String? ?? 'User';
+
         await _tokenStorage.write(token);
-        final role = response.data['role'] as String? ?? 'User';
-        state = AuthState(isLoggedIn: true, isAdmin: role == 'Admin');
+        await _tokenStorage.writeUserId(userId);
+        await _tokenStorage.writeEmail(userEmail);
+        await _tokenStorage.writeRole(role);
+
+        state = AuthState(
+          isLoggedIn: true,
+          isAdmin: role == 'Admin',
+          userId: userId,
+          email: userEmail,
+        );
       }
     } on DioException catch (e) {
-      final msg = e.response?.data['message'] ?? e.message;
-      state = state.copyWith(isLoading: false, error: msg?.toString());
+      final statusCode = e.response?.statusCode;
+      String msg;
+      if (statusCode == 403) {
+        msg = 'Your account is waiting for approval.';
+      } else {
+        final data = e.response?.data;
+        final message = data is Map ? data['message'] : null;
+        msg = (message ?? e.message)?.toString() ?? 'Login failed';
+      }
+      state = state.copyWith(isLoading: false, error: msg);
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
     }
   }
 
-  Future<void> register(String email, String password) async {
+  Future<void> register(String email, String password, {String displayName = ''}) async {
     state = state.copyWith(isLoading: true);
     try {
       if (useMockApi) {
@@ -80,13 +116,19 @@ class AuthNotifier extends StateNotifier<AuthState> {
       } else {
         await _api.dio.post(
           '/auth/register',
-          data: {'email': email, 'password': password},
+          data: {
+            'email': email,
+            'password': password,
+            'displayName': displayName,
+          },
         );
       }
       state = const AuthState(registeredPending: true);
     } on DioException catch (e) {
-      final msg = e.response?.data['message'] ?? e.message;
-      state = state.copyWith(isLoading: false, error: msg?.toString());
+      final msg = e.response?.data is Map
+          ? (e.response?.data['message'] ?? e.message)?.toString()
+          : e.message?.toString() ?? 'Registration failed';
+      state = state.copyWith(isLoading: false, error: msg);
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
     }
@@ -97,8 +139,22 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   void logout() {
-    _tokenStorage.delete();
+    _tokenStorage.clearAll();
     state = const AuthState();
+  }
+
+  Future<void> restoreSession() async {
+    final token = await _tokenStorage.read();
+    if (token == null) return;
+    final userId = await _tokenStorage.readUserId();
+    final email = await _tokenStorage.readEmail();
+    final role = await _tokenStorage.readRole();
+    state = AuthState(
+      isLoggedIn: true,
+      isAdmin: role == 'Admin',
+      userId: userId,
+      email: email,
+    );
   }
 }
 
