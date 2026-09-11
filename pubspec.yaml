@@ -39,6 +39,10 @@ dependencies:
   intl: ^0.20.0
   file_picker: ^12.3.0
   path: ^1.9.0
+  uuid: ^4.5.1
+  url_launcher: ^6.3.1
+  path_provider: ^2.1.5
+  open_filex: ^4.7.0
 
 dev_dependencies:
   flutter_test:
