@@ -3,8 +3,12 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../main.dart';
+import 'api_config.dart';
 
 const _tokenKey = 'jwt_token';
+const _userIdKey = 'user_id';
+const _userEmailKey = 'user_email';
+const _userRoleKey = 'user_role';
 
 class TokenStorage {
   final FlutterSecureStorage _storage;
@@ -13,11 +17,24 @@ class TokenStorage {
       : _storage = storage ?? const FlutterSecureStorage();
 
   Future<String?> read() => _storage.read(key: _tokenKey);
-
-  Future<void> write(String token) =>
-      _storage.write(key: _tokenKey, value: token);
-
+  Future<void> write(String token) => _storage.write(key: _tokenKey, value: token);
   Future<void> delete() => _storage.delete(key: _tokenKey);
+
+  Future<String?> readUserId() => _storage.read(key: _userIdKey);
+  Future<void> writeUserId(String id) => _storage.write(key: _userIdKey, value: id);
+
+  Future<String?> readEmail() => _storage.read(key: _userEmailKey);
+  Future<void> writeEmail(String email) => _storage.write(key: _userEmailKey, value: email);
+
+  Future<String?> readRole() => _storage.read(key: _userRoleKey);
+  Future<void> writeRole(String role) => _storage.write(key: _userRoleKey, value: role);
+
+  Future<void> clearAll() async {
+    await _storage.delete(key: _tokenKey);
+    await _storage.delete(key: _userIdKey);
+    await _storage.delete(key: _userEmailKey);
+    await _storage.delete(key: _userRoleKey);
+  }
 }
 
 final tokenStorageProvider = Provider<TokenStorage>((ref) {
@@ -41,7 +58,7 @@ class AuthInterceptor extends Interceptor {
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) async {
     if (err.response?.statusCode == 401) {
-      await _tokenStorage.delete();
+      await _tokenStorage.clearAll();
       WidgetsBinding.instance.addPostFrameCallback((_) {
         navigatorKey.currentState?.pushReplacementNamed('/');
       });
@@ -50,20 +67,15 @@ class AuthInterceptor extends Interceptor {
   }
 }
 
-const defaultBaseUrl = 'http://10.0.2.2:5000/api';
-
 class ApiClient {
   late final Dio dio;
 
-  ApiClient({
-    String? baseUrl,
-    TokenStorage? tokenStorage,
-  }) {
+  ApiClient({TokenStorage? tokenStorage}) {
     final storage = tokenStorage ?? TokenStorage();
     final interceptor = AuthInterceptor(storage);
 
     dio = Dio(BaseOptions(
-      baseUrl: baseUrl ?? defaultBaseUrl,
+      baseUrl: baseUrl,
       connectTimeout: const Duration(seconds: 10),
       receiveTimeout: const Duration(seconds: 15),
       headers: {'Content-Type': 'application/json'},
