@@ -23,7 +23,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   @override
   void initState() {
     super.initState();
-    ref.read(mailListProvider.notifier).search(query: '');
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(mailListProvider.notifier).search(query: '');
+    });
   }
 
   @override

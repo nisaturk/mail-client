@@ -47,6 +47,26 @@ void main() {
     expect(find.text('Forward'), findsOneWidget);
   });
 
+  testWidgets('search filters the mail list', (WidgetTester tester) async {
+    await tester.pumpWidget(
+      const ProviderScope(child: MaterialApp(home: HomeScreen())),
+    );
+    await tester.pump(const Duration(milliseconds: 600));
+
+    await tester.tap(find.byIcon(Icons.search));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    expect(find.text('Search mail'), findsOneWidget);
+    expect(find.text('Ticket #4821 Güncellendi'), findsWidgets);
+
+    await tester.enterText(find.byType(TextField), 'fatura');
+    await tester.pump();
+
+    expect(find.text('Proje Teslim Tarihi'), findsNothing);
+    expect(find.text('Fatura - Ağustos 2025'), findsWidgets);
+  });
+
   testWidgets('compose renders on a narrow phone surface',
       (WidgetTester tester) async {
     tester.view.physicalSize = const Size(360, 800);
