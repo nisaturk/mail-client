@@ -5,7 +5,6 @@ import '../../models/mail_account.dart';
 import '../../state/auth_provider.dart';
 import '../../state/mail_accounts_provider.dart';
 import '../../state/mail_provider.dart';
-import '../screens/admin_screen.dart';
 import '../screens/mail_accounts_screen.dart';
 
 /// Signature for switching the visible mail folder in the parent screen.
@@ -29,7 +28,6 @@ class MailNavigationDrawer extends ConsumerWidget {
     final MailListState mailState = ref.watch(mailListProvider);
     final List<MailAccount> accounts =
         ref.watch(mailAccountsProvider).accounts.where((a) => a.isActive).toList();
-    final bool isAdmin = ref.watch(authProvider).isAdmin;
 
     return Drawer(
       child: SafeArea(
@@ -104,12 +102,6 @@ class MailNavigationDrawer extends ConsumerWidget {
                 const MailAccountsScreen(),
               ),
             ),
-            if (isAdmin)
-              _DrawerNavTile(
-                icon: Icons.admin_panel_settings_outlined,
-                label: 'Admin panel',
-                onTap: () => _openScreen(context, const AdminScreen()),
-              ),
             _DrawerNavTile(
               icon: Icons.logout,
               label: 'Logout',
