@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:open_filex/open_filex.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import '../../models/attachment.dart';
 import '../../models/mail_detail.dart';
 import '../../models/mail_summary.dart';
+import '../../repositories/api_client.dart';
+import '../../repositories/mail_repository.dart';
 import '../../state/mail_provider.dart';
 import '../widgets/attachment_item.dart';
 import 'compose_screen.dart';
@@ -55,7 +59,14 @@ class _MailDetailScreenState extends ConsumerState<MailDetailScreen> {
   }
 
   Future<void> _loadDetail() async {
-    final detail = await loadMailDetail(widget.mailId);
+    MailDetail? detail;
+    try {
+      detail = await ref
+          .read(mailListProvider.notifier)
+          .fetchDetail(widget.mailId);
+    } catch (_) {
+      detail = null;
+    }
     if (!mounted) return;
     setState(() {
       _detail = detail;
@@ -63,7 +74,6 @@ class _MailDetailScreenState extends ConsumerState<MailDetailScreen> {
     });
     if (detail != null && !detail.isRead) {
       ref.read(mailListProvider.notifier).markAsRead(widget.mailId);
-      await markMailAsRead(widget.mailId);
     }
   }
 
@@ -144,7 +154,7 @@ class _MailDetailScreenState extends ConsumerState<MailDetailScreen> {
           ),
           if (detail.attachments.isNotEmpty) ...[
             const Divider(height: 1),
-            _AttachmentBar(attachments: detail.attachments),
+            _AttachmentBar(attachments: detail.attachments, mailId: detail.id),
           ],
         ],
       ),
@@ -275,13 +285,14 @@ class _MessageHeader extends StatelessWidget {
   }
 }
 
-class _AttachmentBar extends StatelessWidget {
-  const _AttachmentBar({required this.attachments});
+class _AttachmentBar extends ConsumerWidget {
+  const _AttachmentBar({required this.attachments, required this.mailId});
 
   final List<Attachment> attachments;
+  final String mailId;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 0, 12),
       child: Column(
@@ -304,13 +315,7 @@ class _AttachmentBar extends StatelessWidget {
                 return AttachmentItem(
                   width: 230,
                   attachment: attachment,
-                  onTap: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Downloading ${attachment.fileName}'),
-                      ),
-                    );
-                  },
+                  onTap: () => _download(context, ref, attachment),
                 );
               },
             ),
@@ -318,6 +323,45 @@ class _AttachmentBar extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Future<void> _download(
+    BuildContext context,
+    WidgetRef ref,
+    Attachment attachment,
+  ) async {
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.showSnackBar(
+      SnackBar(content: Text('Downloading ${attachment.fileName}')),
+    );
+    final String? savedPath;
+    try {
+      savedPath = await downloadAttachment(
+        dio: ref.read(apiClientProvider).dio,
+        mailId: mailId,
+        attachmentId: attachment.id,
+        fileName: attachment.fileName,
+      );
+    } catch (_) {
+      if (!context.mounted) return;
+      messenger.hideCurrentSnackBar();
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Failed to download attachment')),
+      );
+      return;
+    }
+    if (!context.mounted) return;
+    messenger.hideCurrentSnackBar();
+    if (savedPath == null) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Attachment not found')),
+      );
+      return;
+    }
+    messenger.showSnackBar(
+      SnackBar(content: Text('Saved ${attachment.fileName}')),
+    );
+    OpenFilex.open(savedPath);
   }
 }
 
@@ -355,7 +399,19 @@ class _HtmlBodyState extends State<_HtmlBody> {
   void initState() {
     super.initState();
     _controller = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setJavaScriptMode(JavaScriptMode.disabled)
+      ..setNavigationDelegate(NavigationDelegate(
+        onNavigationRequest: (request) async {
+          if (request.isMainFrame) {
+            final uri = Uri.tryParse(request.url);
+            if (uri != null) {
+              await launchUrl(uri, mode: LaunchMode.externalApplication);
+            }
+            return NavigationDecision.prevent;
+          }
+          return NavigationDecision.navigate;
+        },
+      ))
       ..loadHtmlString(_wrapHtml(widget.html));
   }
 
@@ -364,6 +420,8 @@ class _HtmlBodyState extends State<_HtmlBody> {
     <html>
     <head>
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <meta http-equiv="Content-Security-Policy"
+        content="default-src 'none'; img-src 'data:'; style-src 'unsafe-inline';">
       <style>
         body { font-family: sans-serif; padding: 16px; margin: 0; }
         img { max-width: 100%; height: auto; }
