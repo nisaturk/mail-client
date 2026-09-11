@@ -20,10 +20,27 @@ class MailListBody extends ConsumerStatefulWidget {
 }
 
 class _MailListBodyState extends ConsumerState<MailListBody> {
+  final _scrollController = ScrollController();
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+    _scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.maxScrollExtent - _scrollController.offset >
+        200) {
+      return;
+    }
+    ref.read(mailListProvider.notifier).loadMore();
   }
 
   Future<void> _load() {
@@ -50,10 +67,24 @@ class _MailListBodyState extends ConsumerState<MailListBody> {
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView.separated(
+        controller: _scrollController,
         physics: const AlwaysScrollableScrollPhysics(),
-        itemCount: state.mails.length,
+        padding: const EdgeInsets.only(bottom: 88),
+        itemCount: state.mails.length + (state.hasMore ? 1 : 0),
         separatorBuilder: (_, _) => const Divider(height: 1),
         itemBuilder: (context, index) {
+          if (index == state.mails.length) {
+            return const Padding(
+              padding: EdgeInsets.symmetric(vertical: 16),
+              child: Center(
+                child: SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            );
+          }
           final mail = state.mails[index];
           return MailListItem(
             mail: mail,
