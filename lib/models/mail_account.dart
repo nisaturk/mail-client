@@ -1,5 +1,15 @@
 import 'enums.dart';
 
+MailSecurity _parseSecurity(Object? value) {
+  if (value is String) {
+    final normalized = value.toLowerCase();
+    for (final security in MailSecurity.values) {
+      if (security.name.toLowerCase() == normalized) return security;
+    }
+  }
+  return MailSecurity.sslOnConnect;
+}
+
 class MailAccount {
   final String id;
   final String emailAddress;
@@ -44,16 +54,10 @@ class MailAccount {
       username: json['username'] as String? ?? '',
       imapHost: json['imapHost'] as String,
       imapPort: json['imapPort'] as int,
-      imapSecurity: MailSecurity.values.firstWhere(
-        (e) => e.name == json['imapSecurity'],
-        orElse: () => MailSecurity.sslOnConnect,
-      ),
+      imapSecurity: _parseSecurity(json['imapSecurity']),
       smtpHost: json['smtpHost'] as String,
       smtpPort: json['smtpPort'] as int,
-      smtpSecurity: MailSecurity.values.firstWhere(
-        (e) => e.name == json['smtpSecurity'],
-        orElse: () => MailSecurity.sslOnConnect,
-      ),
+      smtpSecurity: _parseSecurity(json['smtpSecurity']),
       saveSentCopy: json['saveSentCopy'] as bool? ?? true,
       isActive: json['isActive'] as bool? ?? true,
       createdAt: DateTime.parse(json['createdAt'] as String),

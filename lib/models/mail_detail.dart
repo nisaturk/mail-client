@@ -1,5 +1,6 @@
 import 'attachment.dart';
 import 'enums.dart';
+import 'mail_summary.dart';
 
 class MailDetail {
   final String id;
@@ -39,10 +40,7 @@ class MailDetail {
       id: json['id'] as String,
       mailAccountId: json['mailAccountId'] as String,
       mailAccountEmail: json['mailAccountEmail'] as String? ?? '',
-      folderType: MailFolderType.values.firstWhere(
-        (e) => e.name == json['folderType'],
-        orElse: () => MailFolderType.unknown,
-      ),
+      folderType: parseFolderType(json['folderType']),
       fromDisplayName: json['fromDisplayName'] as String? ?? '',
       fromAddress: json['fromAddress'] as String? ?? '',
       toAddress: json['toAddress'] as String? ?? '',

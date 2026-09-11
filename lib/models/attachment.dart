@@ -4,6 +4,7 @@ class Attachment {
   final String contentType;
   final int sizeBytes;
   final bool isInline;
+  final String? contentId;
 
   const Attachment({
     required this.id,
@@ -11,6 +12,7 @@ class Attachment {
     required this.contentType,
     required this.sizeBytes,
     this.isInline = false,
+    this.contentId,
   });
 
   factory Attachment.fromJson(Map<String, dynamic> json) {
@@ -20,6 +22,7 @@ class Attachment {
       contentType: json['contentType'] as String? ?? 'application/octet-stream',
       sizeBytes: json['sizeBytes'] as int? ?? 0,
       isInline: json['isInline'] as bool? ?? false,
+      contentId: json['contentId'] as String?,
     );
   }
 

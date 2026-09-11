@@ -1,5 +1,17 @@
 import 'enums.dart';
 
+MailFolderType parseFolderType(Object? value) {
+  if (value is String) {
+    final normalized = _normalize(value);
+    for (final type in MailFolderType.values) {
+      if (_normalize(type.name) == normalized) return type;
+    }
+  }
+  return MailFolderType.unknown;
+}
+
+String _normalize(String value) => value.toLowerCase();
+
 class MailSummary {
   final String id;
   final String mailAccountId;
@@ -32,10 +44,7 @@ class MailSummary {
       id: json['id'] as String,
       mailAccountId: json['mailAccountId'] as String,
       mailAccountEmail: json['mailAccountEmail'] as String? ?? '',
-      folderType: MailFolderType.values.firstWhere(
-        (e) => e.name == json['folderType'],
-        orElse: () => MailFolderType.unknown,
-      ),
+      folderType: parseFolderType(json['folderType']),
       fromDisplayName: json['fromDisplayName'] as String? ?? '',
       fromAddress: json['fromAddress'] as String? ?? '',
       subject: json['subject'] as String? ?? '(no subject)',
