@@ -2,17 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:webview_flutter/webview_flutter.dart';
-import '../../models/mail_summary.dart';
-import '../../models/mail_detail.dart';
 import '../../models/attachment.dart';
+import '../../models/mail_detail.dart';
+import '../../models/mail_summary.dart';
 import '../../state/mail_provider.dart';
+import '../widgets/attachment_item.dart';
 import 'compose_screen.dart';
 
 class MailDetailScreen extends ConsumerStatefulWidget {
+  const MailDetailScreen({super.key, required this.mailId, this.mail});
+
   final String mailId;
   final MailSummary? mail;
-
-  const MailDetailScreen({super.key, required this.mailId, this.mail});
 
   @override
   ConsumerState<MailDetailScreen> createState() => _MailDetailScreenState();
@@ -66,11 +67,16 @@ class _MailDetailScreenState extends ConsumerState<MailDetailScreen> {
     }
   }
 
+  void _toggleRead(bool read) {
+    final MailListNotifier notifier = ref.read(mailListProvider.notifier);
+    read ? notifier.markAsRead(widget.mailId) : notifier.markAsUnread(widget.mailId);
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Loading...')),
+        appBar: AppBar(title: const Text('Message')),
         body: const Center(child: CircularProgressIndicator()),
       );
     }
@@ -92,86 +98,39 @@ class _MailDetailScreenState extends ConsumerState<MailDetailScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          detail.subject,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
+        title: const SizedBox.shrink(),
         actions: [
-          IconButton(
-            onPressed: () => _openCompose(
-              context,
-              to: detail.fromAddress,
-              subject: detail.subject,
-              quotedBody: detail.bodyText.isNotEmpty ? detail.bodyText : null,
-              prefix: 'Re',
-            ),
-            icon: const Icon(Icons.reply),
-            tooltip: 'Reply',
-          ),
-          IconButton(
-            onPressed: () => _openCompose(
-              context,
-              subject: detail.subject,
-              quotedBody: detail.bodyText.isNotEmpty ? detail.bodyText : null,
-              prefix: 'Fwd',
-            ),
-            icon: const Icon(Icons.forward),
-            tooltip: 'Forward',
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert),
+            tooltip: 'More options',
+            onSelected: (value) {
+              if (value == 'unread') _toggleRead(false);
+              if (value == 'read') _toggleRead(true);
+            },
+            itemBuilder: (_) => [
+              if (detail.isRead)
+                PopupMenuItem(
+                  value: 'unread',
+                  child: _MenuRow(
+                    icon: Icons.mark_email_read_outlined,
+                    label: 'Mark as unread',
+                  ),
+                )
+              else
+                PopupMenuItem(
+                  value: 'read',
+                  child: _MenuRow(
+                    icon: Icons.drafts_outlined,
+                    label: 'Mark as read',
+                  ),
+                ),
+            ],
           ),
         ],
       ),
       body: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    CircleAvatar(
-                      child: Text(
-                        sender.isNotEmpty
-                            ? sender[0].toUpperCase()
-                            : '?',
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            sender,
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                          Text(
-                            detail.fromAddress,
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Text(
-                      'To: ${detail.toAddress}',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                    const Spacer(),
-                    Text(
-                      dateStr,
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
+          _MessageHeader(detail: detail, sender: sender, dateStr: dateStr),
           const Divider(height: 1),
           Expanded(
             child: detail.bodyHtml.isNotEmpty
@@ -185,17 +144,205 @@ class _MailDetailScreenState extends ConsumerState<MailDetailScreen> {
           ),
           if (detail.attachments.isNotEmpty) ...[
             const Divider(height: 1),
-            _AttachmentList(attachments: detail.attachments),
+            _AttachmentBar(attachments: detail.attachments),
           ],
+        ],
+      ),
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
+          child: Row(
+            children: [
+              Expanded(
+                child: FilledButton.tonalIcon(
+                  onPressed: () => _openCompose(
+                    context,
+                    to: detail.fromAddress,
+                    subject: detail.subject,
+                    quotedBody:
+                        detail.bodyText.isNotEmpty ? detail.bodyText : null,
+                    prefix: 'Re',
+                  ),
+                  icon: const Icon(Icons.reply, size: 18),
+                  label: const Text('Reply'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => _openCompose(
+                    context,
+                    subject: detail.subject,
+                    quotedBody:
+                        detail.bodyText.isNotEmpty ? detail.bodyText : null,
+                    prefix: 'Fwd',
+                  ),
+                  icon: const Icon(Icons.forward, size: 18),
+                  label: const Text('Forward'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MessageHeader extends StatelessWidget {
+  const _MessageHeader({
+    required this.detail,
+    required this.sender,
+    required this.dateStr,
+  });
+
+  final MailDetail detail;
+  final String sender;
+  final String dateStr;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme scheme = theme.colorScheme;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            detail.subject,
+            style: theme.textTheme.headlineSmall?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 20,
+                backgroundColor: scheme.primaryContainer,
+                child: Text(
+                  sender.isNotEmpty ? sender[0].toUpperCase() : '?',
+                  style: TextStyle(
+                    color: scheme.onPrimaryContainer,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      sender,
+                      style: theme.textTheme.titleMedium
+                          ?.copyWith(fontWeight: FontWeight.w600),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(
+                      detail.fromAddress,
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(color: scheme.onSurfaceVariant),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'To: ${detail.toAddress}',
+            style:
+                theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+          ),
+          const SizedBox(height: 2),
+          if (dateStr.isNotEmpty)
+            Text(
+              dateStr,
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(color: scheme.onSurfaceVariant),
+            ),
         ],
       ),
     );
   }
 }
 
+class _AttachmentBar extends StatelessWidget {
+  const _AttachmentBar({required this.attachments});
+
+  final List<Attachment> attachments;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 0, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Attachments',
+            style: Theme.of(context).textTheme.titleSmall
+                ?.copyWith(fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 60,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: attachments.length,
+              separatorBuilder: (_, _) => const SizedBox(width: 8),
+              itemBuilder: (context, index) {
+                final attachment = attachments[index];
+                return AttachmentItem(
+                  width: 230,
+                  attachment: attachment,
+                  onTap: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Downloading ${attachment.fileName}'),
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MenuRow extends StatelessWidget {
+  const _MenuRow({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: 20),
+        const SizedBox(width: 12),
+        Text(label),
+      ],
+    );
+  }
+}
+
 class _HtmlBody extends StatefulWidget {
-  final String html;
   const _HtmlBody({required this.html});
+
+  final String html;
 
   @override
   State<_HtmlBody> createState() => _HtmlBodyState();
@@ -229,73 +376,5 @@ class _HtmlBodyState extends State<_HtmlBody> {
   @override
   Widget build(BuildContext context) {
     return WebViewWidget(controller: _controller);
-  }
-}
-
-class _AttachmentList extends StatelessWidget {
-  final List<Attachment> attachments;
-  const _AttachmentList({required this.attachments});
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 72,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        itemCount: attachments.length,
-        separatorBuilder: (_, _) => const SizedBox(width: 8),
-        itemBuilder: (context, index) {
-          final a = attachments[index];
-          return _AttachmentChip(attachment: a);
-        },
-      ),
-    );
-  }
-}
-
-class _AttachmentChip extends StatelessWidget {
-  final Attachment attachment;
-  const _AttachmentChip({required this.attachment});
-
-  @override
-  Widget build(BuildContext context) {
-    final icon = _iconForType(attachment.contentType);
-    return ActionChip(
-      avatar: Icon(icon, size: 18),
-      label: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            attachment.fileName,
-            style: const TextStyle(fontSize: 12),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          Text(
-            attachment.sizeLabel,
-            style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
-          ),
-        ],
-      ),
-      onPressed: () {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Downloading ${attachment.fileName}')),
-        );
-      },
-    );
-  }
-
-  IconData _iconForType(String contentType) {
-    if (contentType.contains('pdf')) return Icons.picture_as_pdf;
-    if (contentType.contains('image')) return Icons.image;
-    if (contentType.contains('spreadsheet') || contentType.contains('excel') || contentType.contains('xlsx')) {
-      return Icons.table_chart;
-    }
-    if (contentType.contains('word') || contentType.contains('document')) {
-      return Icons.description;
-    }
-    return Icons.attach_file;
   }
 }
