@@ -6,7 +6,6 @@ import 'package:path/path.dart' as p;
 import 'package:uuid/uuid.dart';
 import '../../models/mail_account.dart';
 import '../../repositories/api_client.dart';
-import '../../repositories/api_config.dart';
 import '../../repositories/mail_repository.dart';
 import '../../state/mail_accounts_provider.dart';
 
@@ -247,20 +246,6 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
     }
 
     setState(() => _sending = true);
-
-    if (useMockApi) {
-      await Future.delayed(const Duration(seconds: 2));
-      if (!mounted) return;
-      setState(() => _sending = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Mail sent'),
-          backgroundColor: Colors.green,
-        ),
-      );
-      Navigator.pop(context);
-      return;
-    }
 
     final sendResult = await sendMail(
       dio: ref.read(apiClientProvider).dio,

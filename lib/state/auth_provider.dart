@@ -2,8 +2,6 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../repositories/api_client.dart';
-import '../repositories/api_config.dart';
-import '../repositories/mock_auth_repository.dart';
 
 class AuthState {
   final bool isLoading;
@@ -47,51 +45,35 @@ class AuthState {
 
 class AuthNotifier extends StateNotifier<AuthState> {
   final ApiClient _api;
-  final MockAuthRepository _mock;
   final TokenStorage _tokenStorage;
 
-  AuthNotifier(this._api, this._mock, this._tokenStorage)
-      : super(const AuthState());
+  AuthNotifier(this._api, this._tokenStorage) : super(const AuthState());
 
   Future<void> login(String email, String password) async {
     state = state.copyWith(isLoading: true);
     try {
-      if (useMockApi) {
-        await _mock.login(email, password);
-        await _tokenStorage.write('mock.jwt.token');
-        await _tokenStorage.writeUserId('mock-user-id');
-        await _tokenStorage.writeEmail(email);
-        await _tokenStorage.writeRole('Admin');
-        state = AuthState(
-          isLoggedIn: true,
-          isAdmin: true,
-          userId: 'mock-user-id',
-          email: email,
-        );
-      } else {
-        final response = await _api.dio.post(
-          '/auth/login',
-          data: {'email': email, 'password': password},
-        );
-        final data = response.data as Map<String, dynamic>;
-        final token = data['accessToken'] as String?;
-        if (token == null) throw Exception('No token in response');
-        final userId = data['userId'] as String? ?? '';
-        final userEmail = data['email'] as String? ?? email;
-        final role = data['role'] as String? ?? 'User';
+      final response = await _api.dio.post(
+        '/auth/login',
+        data: {'email': email, 'password': password},
+      );
+      final data = response.data as Map<String, dynamic>;
+      final token = data['accessToken'] as String?;
+      if (token == null) throw Exception('No token in response');
+      final userId = data['userId'] as String? ?? '';
+      final userEmail = data['email'] as String? ?? email;
+      final role = data['role'] as String? ?? 'User';
 
-        await _tokenStorage.write(token);
-        await _tokenStorage.writeUserId(userId);
-        await _tokenStorage.writeEmail(userEmail);
-        await _tokenStorage.writeRole(role);
+      await _tokenStorage.write(token);
+      await _tokenStorage.writeUserId(userId);
+      await _tokenStorage.writeEmail(userEmail);
+      await _tokenStorage.writeRole(role);
 
-        state = AuthState(
-          isLoggedIn: true,
-          isAdmin: role == 'Admin',
-          userId: userId,
-          email: userEmail,
-        );
-      }
+      state = AuthState(
+        isLoggedIn: true,
+        isAdmin: role == 'Admin',
+        userId: userId,
+        email: userEmail,
+      );
     } on DioException catch (e) {
       final statusCode = e.response?.statusCode;
       String msg;
@@ -111,18 +93,14 @@ class AuthNotifier extends StateNotifier<AuthState> {
   Future<void> register(String email, String password, {String displayName = ''}) async {
     state = state.copyWith(isLoading: true);
     try {
-      if (useMockApi) {
-        await _mock.register(email, password);
-      } else {
-        await _api.dio.post(
-          '/auth/register',
-          data: {
-            'email': email,
-            'password': password,
-            'displayName': displayName,
-          },
-        );
-      }
+      await _api.dio.post(
+        '/auth/register',
+        data: {
+          'email': email,
+          'password': password,
+          'displayName': displayName,
+        },
+      );
       state = const AuthState(registeredPending: true);
     } on DioException catch (e) {
       final msg = e.response?.data is Map
@@ -160,9 +138,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
 final authProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
   final api = ref.watch(apiClientProvider);
-  final mock = ref.watch(mockAuthRepositoryProvider);
   final tokenStorage = ref.watch(tokenStorageProvider);
-  return AuthNotifier(api, mock, tokenStorage);
+  return AuthNotifier(api, tokenStorage);
 });
 
 final emailControllerProvider = Provider<TextEditingController>((ref) {

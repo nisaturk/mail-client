@@ -1,42 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/mail_account.dart';
-import '../models/enums.dart';
 import '../repositories/api_client.dart';
-import '../repositories/api_config.dart';
-
-final _mockAccounts = [
-  MailAccount(
-    id: '1',
-    emailAddress: 'ahmet@tekyazilim.com',
-    displayName: 'Ahmet',
-    username: 'ahmet',
-    imapHost: 'imap.tekyazilim.com',
-    imapPort: 993,
-    imapSecurity: MailSecurity.sslOnConnect,
-    smtpHost: 'smtp.tekyazilim.com',
-    smtpPort: 587,
-    smtpSecurity: MailSecurity.startTls,
-    isActive: true,
-    createdAt: DateTime(2025, 1, 1),
-    updatedAt: DateTime(2025, 6, 1),
-  ),
-  MailAccount(
-    id: '2',
-    emailAddress: 'destek@tekyazilim.com',
-    displayName: 'Destek',
-    username: 'destek',
-    imapHost: 'imap.tekyazilim.com',
-    imapPort: 993,
-    imapSecurity: MailSecurity.sslOnConnect,
-    smtpHost: 'smtp.tekyazilim.com',
-    smtpPort: 587,
-    smtpSecurity: MailSecurity.startTls,
-    isActive: true,
-    createdAt: DateTime(2025, 3, 15),
-    updatedAt: DateTime(2025, 7, 20),
-  ),
-];
 
 class MailAccountsState {
   final List<MailAccount> accounts;
@@ -71,11 +36,6 @@ class MailAccountsNotifier extends StateNotifier<MailAccountsState> {
 
   Future<void> load() async {
     state = state.copyWith(isLoading: true, error: null);
-    if (useMockApi) {
-      await Future.delayed(const Duration(milliseconds: 500));
-      state = MailAccountsState(accounts: _mockAccounts.toList());
-      return;
-    }
     try {
       final response = await _dio.get('/mail-accounts');
       final items = (response.data as List<dynamic>)
@@ -89,21 +49,6 @@ class MailAccountsNotifier extends StateNotifier<MailAccountsState> {
 
   Future<void> add(MailAccount account) async {
     state = state.copyWith(isLoading: true);
-    if (useMockApi) {
-      await Future.delayed(const Duration(milliseconds: 300));
-      final now = DateTime.now();
-      final newAccount = account.copyWith(
-        id: now.millisecondsSinceEpoch.toString(),
-        isActive: true,
-        createdAt: now,
-        updatedAt: now,
-      );
-      state = state.copyWith(
-        accounts: [...state.accounts, newAccount],
-        isLoading: false,
-      );
-      return;
-    }
     try {
       final response = await _dio.post(
         '/mail-accounts',
@@ -122,20 +67,6 @@ class MailAccountsNotifier extends StateNotifier<MailAccountsState> {
 
   Future<void> update(MailAccount account) async {
     state = state.copyWith(isLoading: true);
-    if (useMockApi) {
-      await Future.delayed(const Duration(milliseconds: 300));
-      final updated = state.accounts.map((a) {
-        return a.id == account.id
-            ? account.copyWith(
-                id: a.id,
-                isActive: a.isActive,
-                createdAt: a.createdAt,
-              )
-            : a;
-      }).toList();
-      state = state.copyWith(accounts: updated, isLoading: false);
-      return;
-    }
     try {
       await _dio.put('/mail-accounts/${account.id}', data: account.toJson());
       final updated = state.accounts.map((a) {
@@ -154,13 +85,6 @@ class MailAccountsNotifier extends StateNotifier<MailAccountsState> {
   }
 
   Future<void> delete(String id) async {
-    if (useMockApi) {
-      await Future.delayed(const Duration(milliseconds: 200));
-      state = state.copyWith(
-        accounts: state.accounts.where((a) => a.id != id).toList(),
-      );
-      return;
-    }
     try {
       await _dio.delete('/mail-accounts/$id');
       state = state.copyWith(
@@ -172,10 +96,6 @@ class MailAccountsNotifier extends StateNotifier<MailAccountsState> {
   }
 
   Future<bool> testConnection(String id) async {
-    if (useMockApi) {
-      await Future.delayed(const Duration(seconds: 1));
-      return true;
-    }
     try {
       await _dio.post('/mail-accounts/$id/test');
       return true;
