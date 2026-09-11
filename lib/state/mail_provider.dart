@@ -15,6 +15,7 @@ final _mockMails = [
     fromDisplayName: 'Mehmet Yilmaz',
     fromAddress: 'mehmet@example.com',
     subject: 'Proje Teslim Tarihi',
+    preview: 'Proje teslim tarihi 15 Eylül olarak güncellendi. Lütfen güncel takvimi kontrol edin.',
     receivedAt: _now.subtract(const Duration(minutes: 15)),
     isRead: false,
     hasAttachments: true,
@@ -27,6 +28,7 @@ final _mockMails = [
     fromDisplayName: 'Zeynep Kaya',
     fromAddress: 'zeynep@firma.com',
     subject: 'Toplanti Notlari - 9 Eylül',
+    preview: 'Toplantı notlarını paylaşıyorum: Bütçe görüşmesi gelecek haftaya ertelendi.',
     receivedAt: _now.subtract(const Duration(hours: 2)),
     isRead: false,
     hasAttachments: false,
@@ -39,6 +41,7 @@ final _mockMails = [
     fromDisplayName: 'Destek Sistemi',
     fromAddress: 'noreply@destek.com',
     subject: 'Ticket #4821 Güncellendi',
+    preview: 'Ticket yeni bir güncelleme aldı. Durum: İnceleniyor.',
     receivedAt: _now.subtract(const Duration(hours: 5)),
     isRead: true,
     hasAttachments: false,
@@ -51,6 +54,7 @@ final _mockMails = [
     fromDisplayName: 'Ali Demir',
     fromAddress: 'ali@ortak.com',
     subject: 'Fatura - Ağustos 2025',
+    preview: 'Ağustos ayı faturası ektedir. Ödeme vadesi: 20 Eylül 2025.',
     receivedAt: _now.subtract(const Duration(days: 1)),
     isRead: true,
     hasAttachments: true,
@@ -63,6 +67,7 @@ final _mockMails = [
     fromDisplayName: 'Ahmet',
     fromAddress: 'ahmet@tekyazilim.com',
     subject: 'Re: Proje Teslim Tarihi',
+    preview: 'Lütfen güncellenen teslim tarihi hakkında bilgi verir misiniz?',
     receivedAt: _now.subtract(const Duration(hours: 1)),
     isRead: true,
     hasAttachments: false,
@@ -75,6 +80,7 @@ final _mockMails = [
     fromDisplayName: 'Destek',
     fromAddress: 'destek@tekyazilim.com',
     subject: 'Re: Ticket #4821',
+    preview: 'İlgili kayıt incelendi, müşteri ile görüşme yapılacak.',
     receivedAt: _now.subtract(const Duration(hours: 4)),
     isRead: true,
     hasAttachments: false,
@@ -147,8 +153,8 @@ final _mockDetails = <String, MailDetail>{
     subject: 'Fatura - Ağustos 2025',
     isRead: true,
     hasAttachments: true,
-    bodyHtml:
-        '<p>Agustos ayi faturasi ektedir. Odeme vadesi: <strong>20 Eylül 2025</strong></p><p>Selamlar,<br>Ali Demir</p>',
+    bodyText:
+        'Ağustos ayı faturası ektedir. Ödeme vadesi: 20 Eylül 2025.\n\nSaygılarımızla,\nAli Demir',
     attachments: [
       Attachment(
           id: 'a3',
@@ -239,9 +245,13 @@ class MailListNotifier extends StateNotifier<MailListState> {
     state = state.copyWith(mails: list);
   }
 
-  void markAsRead(String mailId) {
+  void markAsRead(String mailId) => _applyRead(mailId, true);
+
+  void markAsUnread(String mailId) => _applyRead(mailId, false);
+
+  void _applyRead(String mailId, bool read) {
     MailSummary mark(MailSummary m) =>
-        m.id == mailId && !m.isRead ? m.copyWith(isRead: true) : m;
+        m.id == mailId && m.isRead != read ? m.copyWith(isRead: read) : m;
     state = state.copyWith(
       mails: state.mails.map(mark).toList(),
       allMails: state.allMails.map(mark).toList(),

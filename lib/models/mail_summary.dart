@@ -8,6 +8,7 @@ class MailSummary {
   final String fromDisplayName;
   final String fromAddress;
   final String subject;
+  final String preview;
   final DateTime receivedAt;
   final bool isRead;
   final bool hasAttachments;
@@ -20,6 +21,7 @@ class MailSummary {
     required this.fromDisplayName,
     required this.fromAddress,
     required this.subject,
+    this.preview = '',
     required this.receivedAt,
     required this.isRead,
     required this.hasAttachments,
@@ -37,6 +39,7 @@ class MailSummary {
       fromDisplayName: json['fromDisplayName'] as String? ?? '',
       fromAddress: json['fromAddress'] as String? ?? '',
       subject: json['subject'] as String? ?? '(no subject)',
+      preview: json['preview'] ?? json['snippet'] ?? '',
       receivedAt: DateTime.parse(json['receivedAt'] as String),
       isRead: json['isRead'] as bool? ?? false,
       hasAttachments: json['hasAttachments'] as bool? ?? false,
@@ -50,6 +53,7 @@ class MailSummary {
     String? fromDisplayName,
     String? fromAddress,
     String? subject,
+    String? preview,
     DateTime? receivedAt,
     bool? isRead,
     bool? hasAttachments,
@@ -62,6 +66,7 @@ class MailSummary {
       fromDisplayName: fromDisplayName ?? this.fromDisplayName,
       fromAddress: fromAddress ?? this.fromAddress,
       subject: subject ?? this.subject,
+      preview: preview ?? this.preview,
       receivedAt: receivedAt ?? this.receivedAt,
       isRead: isRead ?? this.isRead,
       hasAttachments: hasAttachments ?? this.hasAttachments,
