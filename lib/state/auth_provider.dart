@@ -1,5 +1,5 @@
 import 'package:dio/dio.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../repositories/api_client.dart';
 
@@ -8,7 +8,6 @@ class AuthState {
   final String? error;
   final bool registeredPending;
   final bool isLoggedIn;
-  final bool isAdmin;
   final String? userId;
   final String? email;
 
@@ -17,7 +16,6 @@ class AuthState {
     this.error,
     this.registeredPending = false,
     this.isLoggedIn = false,
-    this.isAdmin = false,
     this.userId,
     this.email,
   });
@@ -27,7 +25,6 @@ class AuthState {
     String? error,
     bool? registeredPending,
     bool? isLoggedIn,
-    bool? isAdmin,
     String? userId,
     String? email,
   }) {
@@ -36,7 +33,6 @@ class AuthState {
       error: error,
       registeredPending: registeredPending ?? this.registeredPending,
       isLoggedIn: isLoggedIn ?? this.isLoggedIn,
-      isAdmin: isAdmin ?? this.isAdmin,
       userId: userId ?? this.userId,
       email: email ?? this.email,
     );
@@ -61,16 +57,13 @@ class AuthNotifier extends StateNotifier<AuthState> {
       if (token == null) throw Exception('No token in response');
       final userId = data['userId'] as String? ?? '';
       final userEmail = data['email'] as String? ?? email;
-      final role = data['role'] as String? ?? 'User';
 
       await _tokenStorage.write(token);
       await _tokenStorage.writeUserId(userId);
       await _tokenStorage.writeEmail(userEmail);
-      await _tokenStorage.writeRole(role);
 
       state = AuthState(
         isLoggedIn: true,
-        isAdmin: role == 'Admin',
         userId: userId,
         email: userEmail,
       );
@@ -126,10 +119,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
     if (token == null) return;
     final userId = await _tokenStorage.readUserId();
     final email = await _tokenStorage.readEmail();
-    final role = await _tokenStorage.readRole();
     state = AuthState(
       isLoggedIn: true,
-      isAdmin: role == 'Admin',
       userId: userId,
       email: email,
     );

@@ -31,6 +31,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
   late final TextEditingController _subjectCtrl;
   late final TextEditingController _bodyCtrl;
   late final String _idempotencyKey;
+  bool _reuseKeyForRetry = false;
   MailAccount? _selectedAccount;
   final List<_PickedFile> _attachments = [];
   bool _sending = false;
@@ -245,6 +246,15 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
       return;
     }
 
+    if (!_reuseKeyForRetry) {
+      // A fresh logical send action gets a fresh idempotency key.
+      _idempotencyKey = const Uuid().v4();
+    } else {
+      // Retrying the exact same send (same recipients/subject/body/attachments)
+      // must reuse the original key so the backend replays, not resends.
+      _reuseKeyForRetry = false;
+    }
+
     setState(() => _sending = true);
 
     final sendResult = await sendMail(
@@ -262,7 +272,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
 
     if (sendResult.sent) {
       final message = sendResult.sentCopySaved == false
-          ? 'Mail was sent but the sent-copy could not be saved.'
+          ? (sendResult.warning ?? 'Mail was sent but the sent copy could not be saved.')
           : 'Mail sent';
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -276,18 +286,29 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
 
     if (sendResult.deliveryUncertain) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Delivery may have already occurred.')),
+        const SnackBar(
+          content: Text(
+            'Sending may have already started. Check your mailbox before '
+            'sending again.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    if (sendResult.retryable) {
+      _reuseKeyForRetry = true;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(sendResult.error ?? 'Failed to send mail'),
+          action: SnackBarAction(label: 'Retry', onPressed: _send),
+        ),
       );
       return;
     }
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(sendResult.error ?? 'Failed to send mail'),
-        action: sendResult.retryable
-            ? SnackBarAction(label: 'Retry', onPressed: _send)
-            : null,
-      ),
+      SnackBar(content: Text(sendResult.error ?? 'Failed to send mail')),
     );
   }
 

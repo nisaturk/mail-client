@@ -37,10 +37,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       MaterialPageRoute(builder: (_) => const SearchScreen()),
     );
     if (!mounted) return;
-    ref.read(mailListProvider.notifier).load(
-          accountId: _accountId,
-          folderType: _folder,
-        );
+    ref.read(mailListProvider.notifier).clearSearch();
   }
 
   void _openCompose() {

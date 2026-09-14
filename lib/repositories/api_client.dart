@@ -8,7 +8,6 @@ import 'api_config.dart';
 const _tokenKey = 'jwt_token';
 const _userIdKey = 'user_id';
 const _userEmailKey = 'user_email';
-const _userRoleKey = 'user_role';
 
 class TokenStorage {
   final FlutterSecureStorage _storage;
@@ -26,14 +25,10 @@ class TokenStorage {
   Future<String?> readEmail() => _storage.read(key: _userEmailKey);
   Future<void> writeEmail(String email) => _storage.write(key: _userEmailKey, value: email);
 
-  Future<String?> readRole() => _storage.read(key: _userRoleKey);
-  Future<void> writeRole(String role) => _storage.write(key: _userRoleKey, value: role);
-
   Future<void> clearAll() async {
     await _storage.delete(key: _tokenKey);
     await _storage.delete(key: _userIdKey);
     await _storage.delete(key: _userEmailKey);
-    await _storage.delete(key: _userRoleKey);
   }
 }
 

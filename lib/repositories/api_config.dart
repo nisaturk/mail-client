@@ -6,4 +6,4 @@
 ///   - Both machines must be on the same network.
 ///
 /// Never use `localhost` from a mobile device — it refers to the device itself.
-const String baseUrl = 'http://192.168.1.177:5223';
+const String baseUrl = 'http://192.168.1.177:5223/api';

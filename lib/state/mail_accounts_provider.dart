@@ -28,10 +28,12 @@ class MailAccountsState {
 }
 
 class MailAccountsNotifier extends StateNotifier<MailAccountsState> {
+  List<MailAccount> get accounts => state.accounts;
+
   final Dio _dio;
 
   MailAccountsNotifier({Dio? dio})
-      : _dio = dio!,
+      : _dio = dio ?? Dio(),
         super(const MailAccountsState());
 
   Future<void> load() async {

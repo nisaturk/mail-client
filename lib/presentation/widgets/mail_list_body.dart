@@ -112,13 +112,25 @@ class EmptyMailState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bool isSent = folder == MailFolderType.sent;
+    final bool isDrafts = folder == MailFolderType.drafts;
     return _MailStateView(
-      icon: isSent ? Icons.send_outlined : Icons.inbox_outlined,
-      title: title ?? (isSent ? 'No sent messages' : 'No messages'),
+      icon: isSent
+          ? Icons.send_outlined
+          : isDrafts
+              ? Icons.drafts_outlined
+              : Icons.inbox_outlined,
+      title: title ??
+          (isSent
+              ? 'No sent messages'
+              : isDrafts
+                  ? 'No drafts'
+                  : 'No messages'),
       message: message ??
           (isSent
               ? "You haven't sent any messages yet."
-              : 'Your mailbox is empty.'),
+              : isDrafts
+                  ? 'You have no saved drafts.'
+                  : 'Your mailbox is empty.'),
     );
   }
 }

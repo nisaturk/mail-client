@@ -7,9 +7,8 @@ import 'mail_detail_screen.dart';
 
 /// Full-screen mail search.
 ///
-/// Typing updates the shared list provider's query in real time; clearing the
-/// query restores the full (unified) list. The parent screen reloads its own
-/// folder filter after this screen is dismissed.
+/// Typing filters the currently loaded messages client-side (subject, sender
+/// name, sender address). Clearing the query restores the full loaded list.
 class SearchScreen extends ConsumerStatefulWidget {
   const SearchScreen({super.key});
 
@@ -21,14 +20,6 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   final TextEditingController _queryCtrl = TextEditingController();
 
   @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(mailListProvider.notifier).search(query: '');
-    });
-  }
-
-  @override
   void dispose() {
     _queryCtrl.dispose();
     super.dispose();
@@ -36,18 +27,19 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   void _onQueryChanged(String q) {
     setState(() {});
-    ref.read(mailListProvider.notifier).search(query: q);
+    ref.read(mailListProvider.notifier).search(q);
   }
 
   void _clearQuery() {
     _queryCtrl.clear();
     setState(() {});
-    ref.read(mailListProvider.notifier).search(query: '');
+    ref.read(mailListProvider.notifier).clearSearch();
   }
 
   @override
   Widget build(BuildContext context) {
     final MailListState state = ref.watch(mailListProvider);
+    final results = state.displayedMails;
 
     return Scaffold(
       appBar: AppBar(
@@ -73,16 +65,16 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       ),
       body: state.isLoading && state.mails.isEmpty
           ? const MailListSkeleton()
-          : state.mails.isEmpty
+          : results.isEmpty
               ? const EmptyMailState(
                   title: 'No results',
-                  message: 'No mail matches your search.',
+                  message: 'No messages match your search.',
                 )
               : ListView.separated(
-                  itemCount: state.mails.length,
+                  itemCount: results.length,
                   separatorBuilder: (_, _) => const Divider(height: 1),
                   itemBuilder: (context, index) {
-                    final mail = state.mails[index];
+                    final mail = results[index];
                     return MailListItem(
                       mail: mail,
                       onTap: () => Navigator.push(

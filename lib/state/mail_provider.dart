@@ -7,52 +7,65 @@ import '../repositories/api_client.dart';
 
 class MailListState {
   final List<MailSummary> mails;
-  final List<MailSummary> allMails;
   final bool isLoading;
   final String? error;
   final int page;
   final int pageSize;
   final int totalCount;
   final bool hasMore;
+  final String? searchQuery;
 
   const MailListState({
     this.mails = const [],
-    this.allMails = const [],
     this.isLoading = false,
     this.error,
     this.page = 1,
     this.pageSize = 30,
     this.totalCount = 0,
     this.hasMore = false,
+    this.searchQuery,
   });
 
   MailListState copyWith({
     List<MailSummary>? mails,
-    List<MailSummary>? allMails,
     bool? isLoading,
     String? error,
     int? page,
     int? pageSize,
     int? totalCount,
     bool? hasMore,
+    String? searchQuery,
   }) {
     return MailListState(
       mails: mails ?? this.mails,
-      allMails: allMails ?? this.allMails,
       isLoading: isLoading ?? this.isLoading,
       error: error,
       page: page ?? this.page,
       pageSize: pageSize ?? this.pageSize,
       totalCount: totalCount ?? this.totalCount,
       hasMore: hasMore ?? this.hasMore,
+      searchQuery: searchQuery ?? this.searchQuery,
     );
   }
 
+  /// Filtered view used by the UI: applies the live search query to the
+  /// currently loaded messages.
+  List<MailSummary> get displayedMails {
+    final query = searchQuery?.trim().toLowerCase();
+    if (query == null || query.isEmpty) return mails;
+    return mails
+        .where((m) =>
+            m.subject.toLowerCase().contains(query) ||
+            m.fromDisplayName.toLowerCase().contains(query) ||
+            m.fromAddress.toLowerCase().contains(query))
+        .toList();
+  }
+
   int unreadCountForAccount(String accountId) =>
-      allMails.where((m) => m.mailAccountId == accountId && !m.isRead).length;
+      mails.where((m) => m.mailAccountId == accountId && !m.isRead).length;
 
   int unreadCountAll(MailFolderType folder) =>
-      allMails.where((m) => m.folderType == folder && !m.isRead).length;
+      mails.where((m) => m.folderType == folder && !m.isRead).length;
 }
 
 String _folderParam(MailFolderType folderType) {
@@ -65,9 +78,7 @@ class MailListNotifier extends StateNotifier<MailListState> {
   String? _activeAccountId;
   MailFolderType? _activeFolder;
 
-  MailListNotifier({Dio? dio})
-      : _dio = dio!,
-        super(const MailListState());
+  MailListNotifier({Dio? dio}) : _dio = dio ?? Dio(), super(const MailListState());
 
   Future<void> load({
     String? accountId,
@@ -75,34 +86,31 @@ class MailListNotifier extends StateNotifier<MailListState> {
   }) async {
     _activeAccountId = accountId;
     _activeFolder = folderType;
-    state = state.copyWith(isLoading: true, error: null);
+    state = state.copyWith(isLoading: true, error: null, searchQuery: null);
     try {
       final response = await _dio.get('/mails', queryParameters: {
         'accountId': ?accountId,
         if (folderType != null) 'folderType': _folderParam(folderType),
         'page': 1,
-        'pageSize': 30,
+        'pageSize': state.pageSize,
       });
       final data = response.data as Map<String, dynamic>;
       final items = _parseItems(data['items']);
       final total = data['totalCount'] as int? ?? items.length;
       state = MailListState(
         mails: items,
-        allMails: items,
         page: 2,
-        pageSize: 30,
+        pageSize: state.pageSize,
         totalCount: total,
         hasMore: items.length < total,
       );
-      _applyFilter(accountId: accountId, folderType: folderType);
     } on DioException catch (e) {
       state = state.copyWith(isLoading: false, error: _errorMessage(e));
     }
   }
 
   Future<void> loadMore() async {
-    if (!state.hasMore || state.isLoading) return;
-    state = state.copyWith(isLoading: true, error: null);
+    if (!state.hasMore || state.isLoading || state.searchQuery != null) return;
     try {
       final response = await _dio.get('/mails', queryParameters: {
         'accountId': ?_activeAccountId,
@@ -113,57 +121,35 @@ class MailListNotifier extends StateNotifier<MailListState> {
       final data = response.data as Map<String, dynamic>;
       final items = _parseItems(data['items']);
       final total = data['totalCount'] as int? ?? state.totalCount;
-      final cumulative = state.mails.length + items.length;
+      final existingIds = state.mails.map((m) => m.id).toSet();
+      final freshItems =
+          items.where((m) => !existingIds.contains(m.id)).toList();
+      final cumulative = state.mails.length + freshItems.length;
       state = state.copyWith(
-        mails: [...state.mails, ...items],
-        allMails: [...state.allMails, ...items],
-        isLoading: false,
+        mails: [...state.mails, ...freshItems],
         page: state.page + 1,
         totalCount: total,
         hasMore: cumulative < total,
       );
     } on DioException catch (e) {
-      state = state.copyWith(isLoading: false, error: _errorMessage(e));
+      state = state.copyWith(error: _errorMessage(e));
     }
   }
 
-  List<MailSummary> _parseItems(Object? raw) {
-    if (raw is! List) return [];
-    return raw
-        .map((e) => MailSummary.fromJson(e as Map<String, dynamic>))
-        .toList();
+  void search(String query) {
+    state = state.copyWith(searchQuery: query);
   }
 
-  void search({
-    String? accountId,
-    MailFolderType? folderType,
-    required String query,
-  }) {
-    _applyFilter(accountId: accountId, folderType: folderType, query: query);
-  }
-
-  void _applyFilter({
-    String? accountId,
-    MailFolderType? folderType,
-    String? query,
-  }) {
-    var list = state.allMails;
-    if (accountId != null) {
-      list = list.where((m) => m.mailAccountId == accountId).toList();
-    }
-    if (folderType != null) {
-      list = list.where((m) => m.folderType == folderType).toList();
-    }
-    if (query != null && query.trim().isNotEmpty) {
-      final q = query.toLowerCase();
-      list = list
-          .where((m) =>
-              m.subject.toLowerCase().contains(q) ||
-              m.fromDisplayName.toLowerCase().contains(q) ||
-              m.fromAddress.toLowerCase().contains(q))
-          .toList();
-    }
-    state = state.copyWith(mails: list);
+  void clearSearch() {
+    state = MailListState(
+      mails: state.mails,
+      isLoading: state.isLoading,
+      error: state.error,
+      page: state.page,
+      pageSize: state.pageSize,
+      totalCount: state.totalCount,
+      hasMore: state.hasMore,
+    );
   }
 
   void markAsRead(String mailId) {
@@ -177,11 +163,12 @@ class MailListNotifier extends StateNotifier<MailListState> {
   }
 
   void _applyRead(String mailId, bool read) {
-    MailSummary mark(MailSummary m) =>
-        m.id == mailId && m.isRead != read ? m.copyWith(isRead: read) : m;
     state = state.copyWith(
-      mails: state.mails.map(mark).toList(),
-      allMails: state.allMails.map(mark).toList(),
+      mails: state.mails
+          .map((m) => m.id == mailId && m.isRead != read
+              ? m.copyWith(isRead: read)
+              : m)
+          .toList(),
     );
   }
 
@@ -190,6 +177,7 @@ class MailListNotifier extends StateNotifier<MailListState> {
       await _dio.patch('/mails/$mailId/read', data: {'isRead': read});
     } on DioException catch (e) {
       if (e.response?.statusCode == 409) {
+        // ponytail: single refresh on folder conflict, no retry loop.
         await load(accountId: _activeAccountId, folderType: _activeFolder);
       }
     }
@@ -203,6 +191,13 @@ class MailListNotifier extends StateNotifier<MailListState> {
       if (e.response?.statusCode == 404) return null;
       throw Exception(_errorMessage(e));
     }
+  }
+
+  List<MailSummary> _parseItems(Object? raw) {
+    if (raw is! List) return [];
+    return raw
+        .map((e) => MailSummary.fromJson(e as Map<String, dynamic>))
+        .toList();
   }
 
   String _errorMessage(DioException e) =>

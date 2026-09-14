@@ -1,122 +1,73 @@
-import 'dart:convert';
-import 'dart:typed_data';
-
-import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:flapmail/main.dart';
+import 'package:flapmail/models/enums.dart';
+import 'package:flapmail/models/mail_detail.dart';
+import 'package:flapmail/models/mail_summary.dart';
 import 'package:flapmail/presentation/screens/compose_screen.dart';
 import 'package:flapmail/presentation/screens/home_screen.dart';
 import 'package:flapmail/repositories/api_client.dart';
+import 'package:flapmail/state/mail_accounts_provider.dart';
+import 'package:flapmail/state/mail_provider.dart';
 
-const _inboxItems = [
-  {
-    'id': '1',
-    'mailAccountId': '1',
-    'mailAccountEmail': 'ahmet@tekyazilim.com',
-    'folderType': 'Inbox',
-    'fromDisplayName': 'Mehmet Yilmaz',
-    'fromAddress': 'mehmet@example.com',
-    'subject': 'Proje Teslim Tarihi',
-    'preview':
-        'Proje teslim tarihi 15 Eylül olarak güncellendi. Lütfen güncel takvimi kontrol edin.',
-    'receivedAt': '2025-09-10T09:00:00',
-    'isRead': false,
-    'hasAttachments': true,
-  },
-  {
-    'id': '2',
-    'mailAccountId': '1',
-    'mailAccountEmail': 'ahmet@tekyazilim.com',
-    'folderType': 'Inbox',
-    'fromDisplayName': 'Zeynep Kaya',
-    'fromAddress': 'zeynep@firma.com',
-    'subject': 'Toplanti Notlari - 9 Eylül',
-    'preview':
-        'Toplantı notlarını paylaşıyorum: Bütçe görüşmesi gelecek haftaya ertelendi.',
-    'receivedAt': '2025-09-10T08:00:00',
-    'isRead': false,
-    'hasAttachments': false,
-  },
-  {
-    'id': '3',
-    'mailAccountId': '2',
-    'mailAccountEmail': 'destek@tekyazilim.com',
-    'folderType': 'Inbox',
-    'fromDisplayName': 'Destek Sistemi',
-    'fromAddress': 'noreply@destek.com',
-    'subject': 'Ticket #4821 Güncellendi',
-    'preview': 'Ticket yeni bir güncelleme aldı. Durum: İnceleniyor.',
-    'receivedAt': '2025-09-10T07:00:00',
-    'isRead': true,
-    'hasAttachments': false,
-  },
-  {
-    'id': '4',
-    'mailAccountId': '1',
-    'mailAccountEmail': 'ahmet@tekyazilim.com',
-    'folderType': 'Inbox',
-    'fromDisplayName': 'Ali Demir',
-    'fromAddress': 'ali@ortak.com',
-    'subject': 'Fatura - Ağustos 2025',
-    'preview': 'Ağustos ayı faturası ektedir. Ödeme vadesi: 20 Eylül 2025.',
-    'receivedAt': '2025-09-09T09:00:00',
-    'isRead': true,
-    'hasAttachments': true,
-  },
+final _inboxMails = [
+  MailSummary(
+    id: '1',
+    mailAccountId: '1',
+    mailAccountEmail: 'ahmet@tekyazilim.com',
+    folderType: MailFolderType.inbox,
+    fromDisplayName: 'Mehmet Yilmaz',
+    fromAddress: 'mehmet@example.com',
+    subject: 'Proje Teslim Tarihi',
+    preview: 'Proje teslim tarihi 15 Eylül olarak güncellendi.',
+    receivedAt: DateTime(2025, 9, 10, 9),
+    isRead: false,
+    hasAttachments: true,
+  ),
+  MailSummary(
+    id: '2',
+    mailAccountId: '1',
+    mailAccountEmail: 'ahmet@tekyazilim.com',
+    folderType: MailFolderType.inbox,
+    fromDisplayName: 'Zeynep Kaya',
+    fromAddress: 'zeynep@firma.com',
+    subject: 'Toplanti Notlari - 9 Eylül',
+    preview: 'Toplantı notlarını paylaşıyorum.',
+    receivedAt: DateTime(2025, 9, 10, 8),
+    isRead: false,
+    hasAttachments: false,
+  ),
+  MailSummary(
+    id: '3',
+    mailAccountId: '2',
+    mailAccountEmail: 'destek@tekyazilim.com',
+    folderType: MailFolderType.inbox,
+    fromDisplayName: 'Destek Sistemi',
+    fromAddress: 'noreply@destek.com',
+    subject: 'Ticket #4821 Güncellendi',
+    preview: 'Ticket yeni bir güncelleme aldı.',
+    receivedAt: DateTime(2025, 9, 10, 7),
+    isRead: true,
+    hasAttachments: false,
+  ),
+  MailSummary(
+    id: '4',
+    mailAccountId: '1',
+    mailAccountEmail: 'ahmet@tekyazilim.com',
+    folderType: MailFolderType.inbox,
+    fromDisplayName: 'Ali Demir',
+    fromAddress: 'ali@ortak.com',
+    subject: 'Fatura - Ağustos 2025',
+    preview: 'Ağustos ayı faturası ektedir.',
+    receivedAt: DateTime(2025, 9, 9, 9),
+    isRead: true,
+    hasAttachments: true,
+  ),
 ];
 
-const _sentItems = [
-  {
-    'id': '5',
-    'mailAccountId': '1',
-    'mailAccountEmail': 'ahmet@tekyazilim.com',
-    'folderType': 'Sent',
-    'fromDisplayName': 'Ahmet',
-    'fromAddress': 'ahmet@tekyazilim.com',
-    'subject': 'Re: Proje Teslim Tarihi',
-    'preview': 'Lütfen güncellenen teslim tarihi hakkında bilgi verir misiniz?',
-    'receivedAt': '2025-09-10T10:00:00',
-    'isRead': true,
-    'hasAttachments': false,
-  },
-  {
-    'id': '6',
-    'mailAccountId': '2',
-    'mailAccountEmail': 'destek@tekyazilim.com',
-    'folderType': 'Sent',
-    'fromDisplayName': 'Destek',
-    'fromAddress': 'destek@tekyazilim.com',
-    'subject': 'Re: Ticket #4821',
-    'preview': 'İlgili kayıt incelendi, müşteri ile görüşme yapılacak.',
-    'receivedAt': '2025-09-10T06:00:00',
-    'isRead': true,
-    'hasAttachments': false,
-  },
-];
-
-const _accounts = [
-  {
-    'id': '1',
-    'emailAddress': 'ahmet@tekyazilim.com',
-    'displayName': 'Ahmet',
-    'username': 'ahmet',
-    'imapHost': 'imap.tekyazilim.com',
-    'imapPort': 993,
-    'imapSecurity': 'SslOnConnect',
-    'smtpHost': 'smtp.tekyazilim.com',
-    'smtpPort': 587,
-    'smtpSecurity': 'StartTls',
-    'saveSentCopy': true,
-    'isActive': true,
-    'createdAt': '2025-01-01T00:00:00',
-    'updatedAt': '2025-06-01T00:00:00',
-  },
-];
-
-const _detail4 = {
+const _detail4Json = {
   'id': '4',
   'mailAccountId': '1',
   'mailAccountEmail': 'ahmet@tekyazilim.com',
@@ -128,68 +79,60 @@ const _detail4 = {
   'receivedAt': '2025-09-09T09:00:00',
   'isRead': true,
   'hasAttachments': true,
-  'bodyText': 'Ağustos ayı faturası ektedir. Ödeme vadesi: 20 Eylül 2025.',
-  'attachments': [
-    {
-      'id': 'a3',
-      'fileName': 'fatura_agustos_2025.pdf',
-      'contentType': 'application/pdf',
-      'sizeBytes': 156902,
-      'isInline': false,
-    },
-  ],
+  'bodyText': 'Ağustos ayı faturası ektedir.',
+  'attachments': <dynamic>[],
 };
 
-/// Scripted API client for widget tests: serves canned JSON instead of the
-/// live backend at [apiClientProvider.baseUrl].
-class _ScriptedApiAdapter implements HttpClientAdapter {
-  @override
-  Future<ResponseBody> fetch(
-    RequestOptions options,
-    Stream<Uint8List>? requestStream,
-    Future<void>? cancelFuture,
-  ) async {
-    final method = options.method.toUpperCase();
-    final uri = options.uri;
-    final path = uri.path;
-
-    ResponseBody json(Object data, {int status = 200}) => ResponseBody.fromString(
-          jsonEncode(data),
-          status,
-          headers: {
-            Headers.contentTypeHeader: ['application/json'],
-          },
-        );
-
-    if (method == 'GET' && path == '/mail-accounts') {
-      return json(_accounts);
-    }
-    if (method == 'GET' && path == '/mails') {
-      final folder =
-          (uri.queryParameters['folderType'] as String?) ?? 'Inbox';
-      final items =
-          folder.toLowerCase() == 'sent' ? _sentItems : _inboxItems;
-      return json({'items': items, 'totalCount': items.length, 'page': 1, 'pageSize': 30});
-    }
-    if (method == 'GET' && path.startsWith('/mails/')) {
-      final id = path.split('/').last;
-      if (id == '4') return json(_detail4);
-      return json({'error': 'not found'}, status: 404);
-    }
-    return json({'error': 'not found'}, status: 404);
+/// A MailListNotifier that skips all Dio calls and holds pre-loaded state.
+class _FakeMailListNotifier extends MailListNotifier {
+  _FakeMailListNotifier(MailListState initial) : super(dio: null) {
+    state = initial;
   }
 
   @override
-  void close({bool force = false}) {}
+  Future<void> load({String? accountId, MailFolderType? folderType}) async {}
+
+  @override
+  Future<void> loadMore() async {}
+
+  @override
+  Future<MailDetail?> fetchDetail(String mailId) async {
+    if (mailId == '4') return MailDetail.fromJson(_detail4Json);
+    return null;
+  }
 }
 
-/// In-memory stand-in for [TokenStorage] so the auth interceptor never
-/// touches a platform channel during widget tests.
+/// A MailAccountsNotifier that skips Dio calls.
+class _FakeMailAccountsNotifier extends MailAccountsNotifier {
+  _FakeMailAccountsNotifier() : super(dio: null);
+}
+
+MailListState _loadedState({String? searchQuery}) {
+  return MailListState(
+    mails: _inboxMails,
+    page: 2,
+    totalCount: _inboxMails.length,
+    hasMore: false,
+    searchQuery: searchQuery,
+  );
+}
+
+ProviderScope _appScope({required Widget child, MailListState? mailState}) {
+  final client = ApiClient(tokenStorage: _FakeTokenStorage());
+  final state = mailState ?? _loadedState();
+  return ProviderScope(
+    overrides: [
+      apiClientProvider.overrideWithValue(client),
+      mailListProvider.overrideWith((ref) =>
+          _FakeMailListNotifier(state)),
+      mailAccountsProvider.overrideWith((ref) => _FakeMailAccountsNotifier()),
+    ],
+    child: child,
+  );
+}
+
 class _FakeTokenStorage extends TokenStorage {
   String? _token;
-  String? _userId;
-  String? _email;
-  String? _role;
 
   @override
   Future<String?> read() async => _token;
@@ -198,38 +141,28 @@ class _FakeTokenStorage extends TokenStorage {
   @override
   Future<void> delete() async => _token = null;
   @override
-  Future<String?> readUserId() async => _userId;
+  Future<String?> readUserId() async => null;
   @override
-  Future<void> writeUserId(String id) async => _userId = id;
+  Future<void> writeUserId(String id) async {}
   @override
-  Future<String?> readEmail() async => _email;
+  Future<String?> readEmail() async => null;
   @override
-  Future<void> writeEmail(String email) async => _email = email;
+  Future<void> writeEmail(String email) async {}
   @override
-  Future<String?> readRole() async => _role;
-  @override
-  Future<void> writeRole(String role) async => _role = role;
-  @override
-  Future<void> clearAll() async {
-    _token = null;
-    _userId = null;
-    _email = null;
-    _role = null;
-  }
-}
-
-ProviderScope _appScope({required Widget child}) {
-  final client = ApiClient(tokenStorage: _FakeTokenStorage());
-  client.dio.httpClientAdapter = _ScriptedApiAdapter();
-  return ProviderScope(
-    overrides: [apiClientProvider.overrideWithValue(client)],
-    child: child,
-  );
+  Future<void> clearAll() async => _token = null;
 }
 
 void main() {
   testWidgets('renders login screen', (WidgetTester tester) async {
-    await tester.pumpWidget(_appScope(child: const MyApp()));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          apiClientProvider.overrideWithValue(
+              ApiClient(tokenStorage: _FakeTokenStorage())),
+        ],
+        child: const MyApp(),
+      ),
+    );
     await tester.pump();
 
     expect(find.text('FlapMail'), findsOneWidget);
@@ -246,22 +179,22 @@ void main() {
     await tester.pumpWidget(
       _appScope(child: const MaterialApp(home: HomeScreen())),
     );
-    await tester.pump(const Duration(milliseconds: 600));
+    await tester.pump();
 
     expect(find.text('Inbox'), findsOneWidget);
     expect(find.text('Proje Teslim Tarihi'), findsOneWidget);
     expect(find.text('Mehmet Yilmaz'), findsOneWidget);
   });
 
-  testWidgets('opening a mail shows the detail header', (WidgetTester tester) async {
+  testWidgets('opening a mail shows the detail header',
+      (WidgetTester tester) async {
     await tester.pumpWidget(
       _appScope(child: const MaterialApp(home: HomeScreen())),
     );
-    await tester.pump(const Duration(milliseconds: 600));
+    await tester.pump();
 
     await tester.tap(find.text('Fatura - Ağustos 2025'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 700));
+    await tester.pumpAndSettle();
 
     expect(find.text('Reply'), findsOneWidget);
     expect(find.text('Forward'), findsOneWidget);
@@ -271,11 +204,10 @@ void main() {
     await tester.pumpWidget(
       _appScope(child: const MaterialApp(home: HomeScreen())),
     );
-    await tester.pump(const Duration(milliseconds: 600));
+    await tester.pump();
 
     await tester.tap(find.byIcon(Icons.search));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pumpAndSettle();
 
     expect(find.text('Search mail'), findsOneWidget);
     expect(find.text('Ticket #4821 Güncellendi'), findsWidgets);
@@ -296,7 +228,7 @@ void main() {
     await tester.pumpWidget(
       _appScope(child: const MaterialApp(home: ComposeScreen())),
     );
-    await tester.pump(const Duration(milliseconds: 600));
+    await tester.pump();
 
     expect(find.text('New message'), findsOneWidget);
     expect(find.text('To'), findsOneWidget);

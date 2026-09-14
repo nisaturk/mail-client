@@ -15,8 +15,6 @@ typedef FolderSelection = void Function({
 });
 
 /// The app navigation drawer: mail folders, accounts and other actions.
-///
-/// Accounts come from [mailAccountsProvider] (mock data during development).
 class MailNavigationDrawer extends ConsumerWidget {
   const MailNavigationDrawer({super.key, required this.onSelectFolder});
 
@@ -76,6 +74,15 @@ class MailNavigationDrawer extends ConsumerWidget {
                 context,
                 title: 'Sent',
                 folder: MailFolderType.sent,
+              ),
+            ),
+            _DrawerNavTile(
+              icon: Icons.drafts_outlined,
+              label: 'Drafts',
+              onTap: () => _selectFolder(
+                context,
+                title: 'Drafts',
+                folder: MailFolderType.drafts,
               ),
             ),
             if (accounts.isNotEmpty) ...[
@@ -219,6 +226,11 @@ class _AccountTile extends StatelessWidget {
           icon: Icons.send_outlined,
           label: 'Sent',
           onTap: () => onSelect(account.emailAddress, MailFolderType.sent),
+        ),
+        _FolderTile(
+          icon: Icons.drafts_outlined,
+          label: 'Drafts',
+          onTap: () => onSelect(account.emailAddress, MailFolderType.drafts),
         ),
       ],
     );
