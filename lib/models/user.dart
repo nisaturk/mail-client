@@ -21,23 +21,29 @@ class User {
 
   factory User.fromJson(Map<String, dynamic> json) {
     return User(
-      id: json['id'] as String,
-      email: json['email'] as String,
+      id: json['id'] as String? ?? '',
+      email: json['email'] as String? ?? '',
       displayName: json['displayName'] as String? ?? '',
-      role: UserRole.values.firstWhere(
-        (e) => e.name == json['role'],
-        orElse: () => UserRole.user,
-      ),
-      status: UserStatus.values.firstWhere(
-        (e) => e.name == json['status'],
-        orElse: () => UserStatus.pending,
-      ),
-      createdAt: DateTime.parse(json['createdAt'] as String),
+      role: UserRole.fromJson(json['role'] as String?),
+      status: UserStatus.fromJson(json['status'] as String?),
+      createdAt: json['createdAt'] != null
+          ? DateTime.parse(json['createdAt'] as String)
+          : DateTime.now(),
       lastLoginAt: json['lastLoginAt'] != null
           ? DateTime.parse(json['lastLoginAt'] as String)
           : null,
     );
   }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'email': email,
+        'displayName': displayName,
+        'role': role.toJson(),
+        'status': status.toJson(),
+        'createdAt': createdAt.toIso8601String(),
+        if (lastLoginAt != null) 'lastLoginAt': lastLoginAt!.toIso8601String(),
+      };
 
   User copyWith({
     String? email,

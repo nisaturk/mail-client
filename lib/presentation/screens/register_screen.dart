@@ -18,6 +18,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     final auth = ref.watch(authProvider);
     final emailController = ref.watch(emailControllerProvider);
     final passwordController = ref.watch(passwordControllerProvider);
+    final displayNameController = ref.watch(displayNameControllerProvider);
 
     ref.listen<AuthState>(authProvider, (prev, next) {
       if (next.error != null) {
@@ -54,7 +55,18 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     style: Theme.of(context).textTheme.bodyMedium,
                     textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: 40),
+                  const SizedBox(height: 32),
+                  TextFormField(
+                    controller: displayNameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Display Name',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.person_outline),
+                    ),
+                    textInputAction: TextInputAction.next,
+                    validator: validateDisplayName,
+                  ),
+                  const SizedBox(height: 16),
                   TextFormField(
                     controller: emailController,
                     decoration: const InputDecoration(
@@ -115,6 +127,11 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     if (!_formKey.currentState!.validate()) return;
     final email = ref.read(emailControllerProvider).text.trim();
     final password = ref.read(passwordControllerProvider).text;
-    ref.read(authProvider.notifier).register(email, password);
+    final displayName = ref.read(displayNameControllerProvider).text.trim();
+    ref.read(authProvider.notifier).register(
+          email,
+          password,
+          displayName: displayName,
+        );
   }
 }

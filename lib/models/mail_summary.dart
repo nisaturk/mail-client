@@ -27,17 +27,16 @@ class MailSummary {
 
   factory MailSummary.fromJson(Map<String, dynamic> json) {
     return MailSummary(
-      id: json['id'] as String,
-      mailAccountId: json['mailAccountId'] as String,
+      id: json['id'] as String? ?? '',
+      mailAccountId: json['mailAccountId'] as String? ?? '',
       mailAccountEmail: json['mailAccountEmail'] as String? ?? '',
-      folderType: MailFolderType.values.firstWhere(
-        (e) => e.name == json['folderType'],
-        orElse: () => MailFolderType.unknown,
-      ),
+      folderType: MailFolderType.fromJson(json['folderType'] as String?),
       fromDisplayName: json['fromDisplayName'] as String? ?? '',
       fromAddress: json['fromAddress'] as String? ?? '',
       subject: json['subject'] as String? ?? '(no subject)',
-      receivedAt: DateTime.parse(json['receivedAt'] as String),
+      receivedAt: json['receivedAt'] != null
+          ? DateTime.parse(json['receivedAt'] as String)
+          : DateTime.now(),
       isRead: json['isRead'] as bool? ?? false,
       hasAttachments: json['hasAttachments'] as bool? ?? false,
     );
@@ -65,6 +64,32 @@ class MailSummary {
       receivedAt: receivedAt ?? this.receivedAt,
       isRead: isRead ?? this.isRead,
       hasAttachments: hasAttachments ?? this.hasAttachments,
+    );
+  }
+}
+
+class MailPagedResult {
+  final List<MailSummary> items;
+  final int totalCount;
+  final int page;
+  final int pageSize;
+
+  const MailPagedResult({
+    required this.items,
+    required this.totalCount,
+    required this.page,
+    required this.pageSize,
+  });
+
+  factory MailPagedResult.fromJson(Map<String, dynamic> json) {
+    return MailPagedResult(
+      items: (json['items'] as List<dynamic>?)
+              ?.map((e) => MailSummary.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          [],
+      totalCount: json['totalCount'] as int? ?? 0,
+      page: json['page'] as int? ?? 1,
+      pageSize: json['pageSize'] as int? ?? 30,
     );
   }
 }

@@ -1,10 +1,7 @@
-import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../repositories/api_client.dart';
-import '../repositories/mock_auth_repository.dart';
-
-const useMockApi = true;
+import '../repositories/auth_repository.dart';
 
 class AuthState {
   final bool isLoading;
@@ -38,55 +35,38 @@ class AuthState {
   }
 }
 
-class AuthNotifier extends StateNotifier<AuthState> {
-  final ApiClient _api;
-  final MockAuthRepository _mock;
-  final TokenStorage _tokenStorage;
+class AuthNotifier extends Notifier<AuthState> {
+  @override
+  AuthState build() {
+    return const AuthState();
+  }
 
-  AuthNotifier(this._api, this._mock, this._tokenStorage)
-      : super(const AuthState());
+  AuthRepository get _authRepo => ref.read(authRepositoryProvider);
+  TokenStorage get _tokenStorage => ref.read(tokenStorageProvider);
 
   Future<void> login(String email, String password) async {
-    state = state.copyWith(isLoading: true);
+    state = state.copyWith(isLoading: true, error: null);
     try {
-      if (useMockApi) {
-        await _mock.login(email, password);
-        await _tokenStorage.write('mock.jwt.token');
-        state = const AuthState(isLoggedIn: true, isAdmin: true);
-      } else {
-        final response = await _api.dio.post(
-          '/auth/login',
-          data: {'email': email, 'password': password},
-        );
-        final token = response.data['token'] as String?;
-        if (token == null) throw Exception('No token in response');
-        await _tokenStorage.write(token);
-        final role = response.data['role'] as String? ?? 'User';
-        state = AuthState(isLoggedIn: true, isAdmin: role == 'Admin');
-      }
-    } on DioException catch (e) {
-      final msg = e.response?.data['message'] ?? e.message;
-      state = state.copyWith(isLoading: false, error: msg?.toString());
+      final authRes = await _authRepo.login(email, password);
+      await _tokenStorage.write(authRes.accessToken);
+      final isAdmin = authRes.role.toLowerCase() == 'admin';
+      state = AuthState(isLoggedIn: true, isAdmin: isAdmin);
+    } on Exception catch (e) {
+      final msg = e.toString().replaceAll('Exception: ', '');
+      state = state.copyWith(isLoading: false, error: msg);
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
     }
   }
 
-  Future<void> register(String email, String password) async {
-    state = state.copyWith(isLoading: true);
+  Future<void> register(String email, String password, {required String displayName}) async {
+    state = state.copyWith(isLoading: true, error: null);
     try {
-      if (useMockApi) {
-        await _mock.register(email, password);
-      } else {
-        await _api.dio.post(
-          '/auth/register',
-          data: {'email': email, 'password': password},
-        );
-      }
+      await _authRepo.register(email, password, displayName);
       state = const AuthState(registeredPending: true);
-    } on DioException catch (e) {
-      final msg = e.response?.data['message'] ?? e.message;
-      state = state.copyWith(isLoading: false, error: msg?.toString());
+    } on Exception catch (e) {
+      final msg = e.toString().replaceAll('Exception: ', '');
+      state = state.copyWith(isLoading: false, error: msg);
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
     }
@@ -102,12 +82,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 }
 
-final authProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
-  final api = ref.watch(apiClientProvider);
-  final mock = ref.watch(mockAuthRepositoryProvider);
-  final tokenStorage = ref.watch(tokenStorageProvider);
-  return AuthNotifier(api, mock, tokenStorage);
-});
+final authProvider = NotifierProvider<AuthNotifier, AuthState>(AuthNotifier.new);
 
 final emailControllerProvider = Provider<TextEditingController>((ref) {
   final controller = TextEditingController();
@@ -116,6 +91,12 @@ final emailControllerProvider = Provider<TextEditingController>((ref) {
 });
 
 final passwordControllerProvider = Provider<TextEditingController>((ref) {
+  final controller = TextEditingController();
+  ref.onDispose(() => controller.dispose());
+  return controller;
+});
+
+final displayNameControllerProvider = Provider<TextEditingController>((ref) {
   final controller = TextEditingController();
   ref.onDispose(() => controller.dispose());
   return controller;
@@ -131,5 +112,10 @@ String? validateEmail(String? value) {
 String? validatePassword(String? value) {
   if (value == null || value.isEmpty) return 'Password is required';
   if (value.length < 6) return 'Password must be at least 6 characters';
+  return null;
+}
+
+String? validateDisplayName(String? value) {
+  if (value == null || value.trim().isEmpty) return 'Display name is required';
   return null;
 }

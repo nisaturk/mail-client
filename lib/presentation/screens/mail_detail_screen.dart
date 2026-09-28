@@ -5,6 +5,7 @@ import 'package:webview_flutter/webview_flutter.dart';
 import '../../models/mail_summary.dart';
 import '../../models/mail_detail.dart';
 import '../../models/attachment.dart';
+import '../../repositories/mail_repository.dart';
 import '../../state/mail_provider.dart';
 import 'compose_screen.dart';
 
@@ -54,7 +55,10 @@ class _MailDetailScreenState extends ConsumerState<MailDetailScreen> {
   }
 
   Future<void> _loadDetail() async {
-    final detail = await loadMailDetail(widget.mailId);
+    final detail = await loadMailDetail(
+      widget.mailId,
+      repo: ref.read(mailRepositoryProvider),
+    );
     if (!mounted) return;
     setState(() {
       _detail = detail;
@@ -208,7 +212,14 @@ class _HtmlBodyState extends State<_HtmlBody> {
   void initState() {
     super.initState();
     _controller = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setJavaScriptMode(JavaScriptMode.disabled)
+      ..setNavigationDelegate(
+        NavigationDelegate(
+          onNavigationRequest: (request) {
+            return NavigationDecision.prevent;
+          },
+        ),
+      )
       ..loadHtmlString(_wrapHtml(widget.html));
   }
 

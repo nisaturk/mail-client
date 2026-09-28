@@ -38,40 +38,38 @@ class MailAccount {
 
   factory MailAccount.fromJson(Map<String, dynamic> json) {
     return MailAccount(
-      id: json['id'] as String,
-      emailAddress: json['emailAddress'] as String,
+      id: json['id'] as String? ?? '',
+      emailAddress: json['emailAddress'] as String? ?? '',
       displayName: json['displayName'] as String? ?? '',
       username: json['username'] as String? ?? '',
-      imapHost: json['imapHost'] as String,
-      imapPort: json['imapPort'] as int,
-      imapSecurity: MailSecurity.values.firstWhere(
-        (e) => e.name == json['imapSecurity'],
-        orElse: () => MailSecurity.sslOnConnect,
-      ),
-      smtpHost: json['smtpHost'] as String,
-      smtpPort: json['smtpPort'] as int,
-      smtpSecurity: MailSecurity.values.firstWhere(
-        (e) => e.name == json['smtpSecurity'],
-        orElse: () => MailSecurity.sslOnConnect,
-      ),
+      imapHost: json['imapHost'] as String? ?? '',
+      imapPort: json['imapPort'] as int? ?? 993,
+      imapSecurity: MailSecurity.fromJson(json['imapSecurity'] as String?),
+      smtpHost: json['smtpHost'] as String? ?? '',
+      smtpPort: json['smtpPort'] as int? ?? 587,
+      smtpSecurity: MailSecurity.fromJson(json['smtpSecurity'] as String?),
       saveSentCopy: json['saveSentCopy'] as bool? ?? true,
       isActive: json['isActive'] as bool? ?? true,
-      createdAt: DateTime.parse(json['createdAt'] as String),
-      updatedAt: DateTime.parse(json['updatedAt'] as String),
+      createdAt: json['createdAt'] != null
+          ? DateTime.parse(json['createdAt'] as String)
+          : DateTime.now(),
+      updatedAt: json['updatedAt'] != null
+          ? DateTime.parse(json['updatedAt'] as String)
+          : DateTime.now(),
     );
   }
 
-  Map<String, dynamic> toJson() => {
+  Map<String, dynamic> toJson({String? password}) => {
         'emailAddress': emailAddress,
         'displayName': displayName,
         'username': username,
-        'password': '',
+        'password':? password,
         'imapHost': imapHost,
         'imapPort': imapPort,
-        'imapSecurity': imapSecurity.name,
+        'imapSecurity': imapSecurity.toJson(),
         'smtpHost': smtpHost,
         'smtpPort': smtpPort,
-        'smtpSecurity': smtpSecurity.name,
+        'smtpSecurity': smtpSecurity.toJson(),
         'saveSentCopy': saveSentCopy,
       };
 

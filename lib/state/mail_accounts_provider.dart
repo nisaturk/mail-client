@@ -1,39 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/mail_account.dart';
-import '../models/enums.dart';
-
-final _mockAccounts = [
-  MailAccount(
-    id: '1',
-    emailAddress: 'ahmet@tekyazilim.com',
-    displayName: 'Ahmet',
-    username: 'ahmet',
-    imapHost: 'imap.tekyazilim.com',
-    imapPort: 993,
-    imapSecurity: MailSecurity.sslOnConnect,
-    smtpHost: 'smtp.tekyazilim.com',
-    smtpPort: 587,
-    smtpSecurity: MailSecurity.startTls,
-    isActive: true,
-    createdAt: DateTime(2025, 1, 1),
-    updatedAt: DateTime(2025, 6, 1),
-  ),
-  MailAccount(
-    id: '2',
-    emailAddress: 'destek@tekyazilim.com',
-    displayName: 'Destek',
-    username: 'destek',
-    imapHost: 'imap.tekyazilim.com',
-    imapPort: 993,
-    imapSecurity: MailSecurity.sslOnConnect,
-    smtpHost: 'smtp.tekyazilim.com',
-    smtpPort: 587,
-    smtpSecurity: MailSecurity.startTls,
-    isActive: true,
-    createdAt: DateTime(2025, 3, 15),
-    updatedAt: DateTime(2025, 7, 20),
-  ),
-];
+import '../repositories/mail_account_repository.dart';
 
 class MailAccountsState {
   final List<MailAccount> accounts;
@@ -59,75 +26,80 @@ class MailAccountsState {
   }
 }
 
-class MailAccountsNotifier extends StateNotifier<MailAccountsState> {
-  final bool _useMock;
+class MailAccountsNotifier extends Notifier<MailAccountsState> {
+  @override
+  MailAccountsState build() {
+    Future.microtask(() => load());
+    return const MailAccountsState();
+  }
 
-  MailAccountsNotifier({
-    this._useMock = true,
-  }) : super(const MailAccountsState());
+  MailAccountRepository get _repo => ref.read(mailAccountRepositoryProvider);
 
   Future<void> load() async {
-    state = state.copyWith(isLoading: true);
-    if (_useMock) {
-      await Future.delayed(const Duration(milliseconds: 500));
-      state = MailAccountsState(accounts: _mockAccounts.toList());
+    state = state.copyWith(isLoading: true, error: null);
+    try {
+      final accounts = await _repo.getAccounts();
+      state = MailAccountsState(accounts: accounts);
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        error: e.toString().replaceAll('Exception: ', ''),
+      );
     }
   }
 
-  Future<void> add(MailAccount account) async {
-    state = state.copyWith(isLoading: true);
-    if (_useMock) {
-      await Future.delayed(const Duration(milliseconds: 300));
-      final now = DateTime.now();
-      final newAccount = account.copyWith(
-        id: now.millisecondsSinceEpoch.toString(),
-        isActive: true,
-        createdAt: now,
-        updatedAt: now,
-      );
+  Future<void> add(MailAccount account, {String password = ''}) async {
+    state = state.copyWith(isLoading: true, error: null);
+    try {
+      final created = await _repo.createAccount(account, password: password);
       state = state.copyWith(
-        accounts: [...state.accounts, newAccount],
+        accounts: [...state.accounts, created],
         isLoading: false,
       );
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        error: e.toString().replaceAll('Exception: ', ''),
+      );
     }
   }
 
-  Future<void> update(MailAccount account) async {
-    state = state.copyWith(isLoading: true);
-    if (_useMock) {
-      await Future.delayed(const Duration(milliseconds: 300));
-      final updated = state.accounts.map((a) {
-        return a.id == account.id
-            ? account.copyWith(
-                id: a.id,
-                isActive: a.isActive,
-                createdAt: a.createdAt,
-              )
-            : a;
-      }).toList();
-      state = state.copyWith(accounts: updated, isLoading: false);
+  Future<void> update(MailAccount account, {String? password}) async {
+    state = state.copyWith(isLoading: true, error: null);
+    try {
+      final updated = await _repo.updateAccount(account, password: password);
+      final list = state.accounts
+          .map((a) => a.id == updated.id ? updated : a)
+          .toList();
+      state = state.copyWith(accounts: list, isLoading: false);
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        error: e.toString().replaceAll('Exception: ', ''),
+      );
     }
   }
 
   Future<void> delete(String id) async {
-    if (_useMock) {
-      await Future.delayed(const Duration(milliseconds: 200));
+    try {
+      await _repo.deleteAccount(id);
       state = state.copyWith(
         accounts: state.accounts.where((a) => a.id != id).toList(),
+      );
+    } catch (e) {
+      state = state.copyWith(
+        error: e.toString().replaceAll('Exception: ', ''),
       );
     }
   }
 
   Future<bool> testConnection(String id) async {
-    if (_useMock) {
-      await Future.delayed(const Duration(seconds: 1));
-      return true;
-    }
-    return false;
+    final res = await _repo.testConnection(id);
+    return res.succeeded;
   }
 }
 
 final mailAccountsProvider =
-    StateNotifierProvider<MailAccountsNotifier, MailAccountsState>((ref) {
-  return MailAccountsNotifier()..load();
-});
+    NotifierProvider<MailAccountsNotifier, MailAccountsState>(
+  MailAccountsNotifier.new,
+);

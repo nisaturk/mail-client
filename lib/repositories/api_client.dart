@@ -32,7 +32,7 @@ class AuthInterceptor extends Interceptor {
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) async {
     final token = await _tokenStorage.read();
-    if (token != null) {
+    if (token != null && token.isNotEmpty) {
       options.headers['Authorization'] = 'Bearer $token';
     }
     handler.next(options);
@@ -50,7 +50,7 @@ class AuthInterceptor extends Interceptor {
   }
 }
 
-const defaultBaseUrl = 'http://10.0.2.2:5000/api';
+const defaultBaseUrl = 'http://localhost:5223/api';
 
 class ApiClient {
   late final Dio dio;

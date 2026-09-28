@@ -36,18 +36,17 @@ class MailDetail {
 
   factory MailDetail.fromJson(Map<String, dynamic> json) {
     return MailDetail(
-      id: json['id'] as String,
-      mailAccountId: json['mailAccountId'] as String,
+      id: json['id'] as String? ?? '',
+      mailAccountId: json['mailAccountId'] as String? ?? '',
       mailAccountEmail: json['mailAccountEmail'] as String? ?? '',
-      folderType: MailFolderType.values.firstWhere(
-        (e) => e.name == json['folderType'],
-        orElse: () => MailFolderType.unknown,
-      ),
+      folderType: MailFolderType.fromJson(json['folderType'] as String?),
       fromDisplayName: json['fromDisplayName'] as String? ?? '',
       fromAddress: json['fromAddress'] as String? ?? '',
       toAddress: json['toAddress'] as String? ?? '',
       subject: json['subject'] as String? ?? '(no subject)',
-      receivedAt: DateTime.parse(json['receivedAt'] as String),
+      receivedAt: json['receivedAt'] != null
+          ? DateTime.parse(json['receivedAt'] as String)
+          : null,
       isRead: json['isRead'] as bool? ?? false,
       hasAttachments: json['hasAttachments'] as bool? ?? false,
       bodyHtml: json['bodyHtml'] as String? ?? '',

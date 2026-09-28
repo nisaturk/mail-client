@@ -1,44 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/user.dart';
 import '../models/enums.dart';
-
-final _mockUsers = [
-  User(
-    id: '1',
-    email: 'admin@flapmail.com',
-    displayName: 'Admin',
-    role: UserRole.admin,
-    status: UserStatus.active,
-    createdAt: DateTime(2024, 1, 1),
-    lastLoginAt: DateTime(2025, 9, 1),
-  ),
-  User(
-    id: '2',
-    email: 'ahmet@tekyazilim.com',
-    displayName: 'Ahmet',
-    role: UserRole.user,
-    status: UserStatus.active,
-    createdAt: DateTime(2025, 1, 15),
-    lastLoginAt: DateTime(2025, 8, 20),
-  ),
-  User(
-    id: '3',
-    email: 'mehmet@example.com',
-    displayName: 'Mehmet',
-    role: UserRole.user,
-    status: UserStatus.pending,
-    createdAt: DateTime(2025, 9, 1),
-  ),
-  User(
-    id: '4',
-    email: 'zeynep@example.com',
-    displayName: 'Zeynep',
-    role: UserRole.user,
-    status: UserStatus.disabled,
-    createdAt: DateTime(2025, 3, 10),
-    lastLoginAt: DateTime(2025, 6, 5),
-  ),
-];
+import '../repositories/admin_repository.dart';
 
 class AdminState {
   final List<User> users;
@@ -64,13 +27,26 @@ class AdminState {
   }
 }
 
-class AdminNotifier extends StateNotifier<AdminState> {
-  AdminNotifier() : super(const AdminState());
+class AdminNotifier extends Notifier<AdminState> {
+  @override
+  AdminState build() {
+    Future.microtask(() => load());
+    return const AdminState();
+  }
+
+  AdminRepository get _repo => ref.read(adminRepositoryProvider);
 
   Future<void> load() async {
-    state = state.copyWith(isLoading: true);
-    await Future.delayed(const Duration(milliseconds: 400));
-    state = AdminState(users: _mockUsers.toList());
+    state = state.copyWith(isLoading: true, error: null);
+    try {
+      final users = await _repo.getUsers();
+      state = AdminState(users: users);
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        error: e.toString().replaceAll('Exception: ', ''),
+      );
+    }
   }
 
   Future<void> approve(String userId) =>
@@ -83,30 +59,44 @@ class AdminNotifier extends StateNotifier<AdminState> {
       _setStatus(userId, UserStatus.active);
 
   Future<void> createUser(String email, String displayName) async {
-    state = state.copyWith(isLoading: true);
-    await Future.delayed(const Duration(milliseconds: 400));
-    final newUser = User(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      email: email,
-      displayName: displayName,
-      role: UserRole.user,
-      status: UserStatus.pending,
-      createdAt: DateTime.now(),
-    );
-    state = state.copyWith(
-      users: [...state.users, newUser],
-      isLoading: false,
-    );
+    state = state.copyWith(isLoading: true, error: null);
+    try {
+      final created = await _repo.createUser(email, displayName);
+      state = state.copyWith(
+        users: [...state.users, created],
+        isLoading: false,
+      );
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        error: e.toString().replaceAll('Exception: ', ''),
+      );
+    }
   }
 
   Future<void> resetPassword(String userId) async {
-    await Future.delayed(const Duration(milliseconds: 300));
-    // In real app: POST /api/admin/users/{id}/reset-password
+    try {
+      await _repo.resetPassword(userId);
+    } catch (e) {
+      state = state.copyWith(
+        error: e.toString().replaceAll('Exception: ', ''),
+      );
+    }
   }
 
   Future<void> _setStatus(String userId, UserStatus status) async {
-    await Future.delayed(const Duration(milliseconds: 300));
-    _updateUser(userId, (u) => u.copyWith(status: status));
+    try {
+      if (status == UserStatus.active) {
+        await _repo.approveUser(userId);
+      } else if (status == UserStatus.disabled) {
+        await _repo.disableUser(userId);
+      }
+      _updateUser(userId, (u) => u.copyWith(status: status));
+    } catch (e) {
+      state = state.copyWith(
+        error: e.toString().replaceAll('Exception: ', ''),
+      );
+    }
   }
 
   void _updateUser(String id, User Function(User) transform) {
@@ -116,6 +106,4 @@ class AdminNotifier extends StateNotifier<AdminState> {
   }
 }
 
-final adminProvider = StateNotifierProvider<AdminNotifier, AdminState>((ref) {
-  return AdminNotifier()..load();
-});
+final adminProvider = NotifierProvider<AdminNotifier, AdminState>(AdminNotifier.new);

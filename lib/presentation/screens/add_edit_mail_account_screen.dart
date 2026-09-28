@@ -259,6 +259,50 @@ class _AddEditMailAccountScreenState
 
   void _save() {
     if (!_formKey.currentState!.validate()) return;
+
+    final orig = widget.account;
+    final newImapHost = _imapHostCtrl.text.trim();
+    final newImapPort = int.tryParse(_imapPortCtrl.text.trim()) ?? 993;
+    final newUsername = _usernameCtrl.text.trim();
+
+    final imapChanged = _isEditing &&
+        orig != null &&
+        (orig.imapHost != newImapHost ||
+            orig.imapPort != newImapPort ||
+            orig.username != newUsername ||
+            orig.imapSecurity != _imapSecurity);
+
+    if (imapChanged) {
+      showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Reconfigure IMAP Identity?'),
+          content: const Text(
+            'Changing IMAP server identity will wipe the locally cached mailbox for this account and rebuild it from the server. Do you want to continue?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Proceed'),
+            ),
+          ],
+        ),
+      ).then((confirmed) {
+        if (confirmed == true) {
+          _performSave();
+        }
+      });
+    } else {
+      _performSave();
+    }
+  }
+
+  void _performSave() {
+    final password = _passwordCtrl.text.trim();
     final account = MailAccount(
       id: widget.account?.id ?? '',
       emailAddress: _emailCtrl.text.trim(),
@@ -276,7 +320,10 @@ class _AddEditMailAccountScreenState
     );
 
     final notifier = ref.read(mailAccountsProvider.notifier);
-    final future = _isEditing ? notifier.update(account) : notifier.add(account);
+    final future = _isEditing
+        ? notifier.update(account, password: password.isNotEmpty ? password : null)
+        : notifier.add(account, password: password);
+
     future.then((_) {
       if (mounted) Navigator.pop(context, true);
     });

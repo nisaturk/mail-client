@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:path/path.dart' as p;
+import 'package:uuid/uuid.dart';
 import '../../models/mail_account.dart';
+import '../../repositories/mail_repository.dart';
 import '../../state/mail_accounts_provider.dart';
 
 class ComposeScreen extends ConsumerStatefulWidget {
@@ -29,6 +31,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
   MailAccount? _selectedAccount;
   final List<_PickedFile> _attachments = [];
   bool _sending = false;
+  String? _idempotencyKey;
 
   @override
   void initState() {
@@ -202,20 +205,50 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
       return;
     }
 
+    _idempotencyKey ??= const Uuid().v4();
     setState(() => _sending = true);
 
-    // TODO: POST /api/mail-accounts/{accountId}/send via Dio
-    await Future.delayed(const Duration(seconds: 2));
+    try {
+      final repo = ref.read(mailRepositoryProvider);
+      final res = await repo.sendMail(
+        accountId: _selectedAccount!.id,
+        toAddress: _toCtrl.text.trim(),
+        subject: _subjectCtrl.text.trim(),
+        bodyText: _bodyCtrl.text,
+        attachmentPaths: _attachments.map((a) => a.path).toList(),
+        idempotencyKey: _idempotencyKey!,
+      );
 
-    if (!mounted) return;
-    setState(() => _sending = false);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Mail sent'),
-        backgroundColor: Colors.green,
-      ),
-    );
-    Navigator.pop(context);
+      if (!mounted) return;
+      setState(() => _sending = false);
+
+      if (res.warning != null && res.warning!.isNotEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Sent with warning: ${res.warning}'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Mail sent successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+
+      Navigator.pop(context);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _sending = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceAll('Exception: ', '')),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 }
 
